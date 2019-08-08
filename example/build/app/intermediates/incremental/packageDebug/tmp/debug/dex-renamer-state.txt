@@ -1,4 +1,0 @@
-#Thu Jul 25 10:17:01 CST 2019
-base.0=/Users/cnting/Documents/workspace_flutter/plugins/packages/video_player/example/build/app/intermediates/transforms/dexMerger/debug/0
-path.0=classes.dex
-renamed.0=classes.dex

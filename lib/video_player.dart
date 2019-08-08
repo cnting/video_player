@@ -10,8 +10,8 @@ import 'package:flutter/material.dart';
 import 'package:meta/meta.dart';
 
 final MethodChannel _channel = const MethodChannel('flutter.io/videoPlayer')
-  // This will clear all open videos on the platform when a full restart is
-  // performed.
+// This will clear all open videos on the platform when a full restart is
+// performed.
   ..invokeMethod<void>('init');
 
 class DurationRange {
@@ -86,7 +86,9 @@ class VideoPlayerValue {
   final Size size;
 
   bool get initialized => duration != null;
+
   bool get hasError => errorDescription != null;
+
   double get aspectRatio => size != null ? size.width / size.height : 1.0;
 
   VideoPlayerValue copyWith({
@@ -194,10 +196,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     Map<dynamic, dynamic> dataSourceDescription;
     switch (dataSourceType) {
       case DataSourceType.asset:
-        dataSourceDescription = <String, dynamic>{
-          'asset': dataSource,
-          'package': package
-        };
+        dataSourceDescription = <String, dynamic>{'asset': dataSource, 'package': package};
         break;
       case DataSourceType.network:
         dataSourceDescription = <String, dynamic>{'uri': dataSource};
@@ -205,8 +204,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       case DataSourceType.file:
         dataSourceDescription = <String, dynamic>{'uri': dataSource};
     }
-    final Map<String, dynamic> response =
-        await _channel.invokeMapMethod<String, dynamic>(
+    final Map<String, dynamic> response = await _channel.invokeMapMethod<String, dynamic>(
       'create',
       dataSourceDescription,
     );
@@ -232,8 +230,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         case 'initialized':
           value = value.copyWith(
             duration: Duration(milliseconds: map['duration']),
-            size: Size(map['width']?.toDouble() ?? 0.0,
-                map['height']?.toDouble() ?? 0.0),
+            size: Size(map['width']?.toDouble() ?? 0.0, map['height']?.toDouble() ?? 0.0),
           );
           initializingCompleter.complete(null);
           _applyLooping();
@@ -396,6 +393,26 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   Future<void> setVolume(double volume) async {
     value = value.copyWith(volume: volume.clamp(0.0, 1.0));
     await _applyVolume();
+  }
+
+  ///获取分辨率
+  Future<Map<int, String>> getResolutions() async {
+    final Map<String, dynamic> response = await _channel.invokeMapMethod<String, dynamic>(
+      'getResolutions',
+      <String, dynamic>{'textureId': _textureId},
+    );
+    Map<int, String> resolutions = Map<int, String>.from(response['resolutions']);
+    return resolutions;
+  }
+
+  Future<void> switchResolutions(int trackIndex) async {
+    if (!value.initialized || _isDisposed) {
+      return;
+    }
+    await _channel.invokeMethod<void>(
+      'switchResolutions',
+      <String, dynamic>{'textureId': _textureId, 'trackIndex': trackIndex},
+    );
   }
 }
 
