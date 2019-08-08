@@ -445,19 +445,30 @@ class _ResolutionsWidgetState extends State<ResolutionsWidget> {
         });
       },
     );
-    var btns = resolutions?.entries
-            ?.map((entry) => RaisedButton(
-                  child: Text("切换到:${entry.value}"),
-                  onPressed: () {
-                    widget.controller.switchResolutions(entry.key);
-                  },
+    List<Widget> widgets = [getResolutionsBtn];
+    List<Widget> btns = resolutions?.entries
+            ?.map((entry) => Row(
+                  children: <Widget>[
+                    RaisedButton(
+                      child: Text("切换到:${entry.value}"),
+                      onPressed: () {
+                        widget.controller.switchResolutions(entry.key);
+                      },
+                    ),
+                    RaisedButton(
+                      child: Text("点击下载"),
+                      onPressed: () {
+                        widget.controller.download(entry.key, entry.value);
+                      },
+                    ),
+                  ],
                 ))
             ?.toList() ??
-        []
-      ..insert(0, getResolutionsBtn);
+        [];
+    widgets.addAll(btns);
 
     return Column(
-      children: btns,
+      children: widgets,
     );
   }
 }

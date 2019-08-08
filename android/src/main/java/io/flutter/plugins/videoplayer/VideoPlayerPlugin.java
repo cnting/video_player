@@ -4,10 +4,6 @@
 
 package io.flutter.plugins.videoplayer;
 
-import static com.google.android.exoplayer2.Player.REPEAT_MODE_ALL;
-import static com.google.android.exoplayer2.Player.REPEAT_MODE_OFF;
-import static com.google.android.exoplayer2.trackselection.MappingTrackSelector.MappedTrackInfo.RENDERER_SUPPORT_NO_TRACKS;
-
 import android.content.Context;
 import android.net.Uri;
 import android.os.Build;
@@ -16,14 +12,20 @@ import android.util.LongSparseArray;
 import android.view.Surface;
 
 import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.Player.EventListener;
+import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.audio.AudioAttributes;
 import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
+import com.google.android.exoplayer2.offline.Download;
+import com.google.android.exoplayer2.offline.DownloadHelper;
+import com.google.android.exoplayer2.offline.DownloadRequest;
+import com.google.android.exoplayer2.offline.DownloadService;
 import com.google.android.exoplayer2.source.ExtractorMediaSource;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.TrackGroup;
@@ -35,13 +37,19 @@ import com.google.android.exoplayer2.source.smoothstreaming.DefaultSsChunkSource
 import com.google.android.exoplayer2.source.smoothstreaming.SsMediaSource;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
-import com.google.android.exoplayer2.trackselection.TrackSelector;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
-import com.google.android.exoplayer2.util.EventLogger;
 import com.google.android.exoplayer2.util.Util;
+
+import java.io.IOException;
+import java.util.ArrayList;
+import java.util.Arrays;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
 
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodCall;
@@ -53,30 +61,172 @@ import io.flutter.plugin.common.PluginRegistry.Registrar;
 import io.flutter.view.FlutterNativeView;
 import io.flutter.view.TextureRegistry;
 
-import java.util.ArrayList;
-import java.util.Arrays;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
+import static com.google.android.exoplayer2.Player.REPEAT_MODE_ALL;
+import static com.google.android.exoplayer2.Player.REPEAT_MODE_OFF;
+import static com.google.android.exoplayer2.trackselection.MappingTrackSelector.MappedTrackInfo.RENDERER_SUPPORT_NO_TRACKS;
 
 public class VideoPlayerPlugin implements MethodCallHandler {
+
+    public static void registerWith(Registrar registrar) {
+        final VideoPlayerPlugin plugin = new VideoPlayerPlugin(registrar);
+        final MethodChannel channel =
+                new MethodChannel(registrar.messenger(), "flutter.io/videoPlayer");
+        channel.setMethodCallHandler(plugin);
+        registrar.addViewDestroyListener(
+                view -> {
+                    plugin.onDestroy();
+                    return false; // We are not interested in assuming ownership of the NativeView.
+                });
+    }
+
+    private VideoPlayerPlugin(Registrar registrar) {
+        this.registrar = registrar;
+        this.videoPlayers = new LongSparseArray<>();
+        this.videoDownloadManager = VideoDownloadManager.Companion.getInstance(registrar.activeContext().getApplicationContext());
+    }
+
+    private final LongSparseArray<VideoPlayer> videoPlayers;
+    private final Registrar registrar;
+    private final VideoDownloadManager videoDownloadManager;
+
+    private void disposeAllPlayers() {
+        for (int i = 0; i < videoPlayers.size(); i++) {
+            videoPlayers.valueAt(i).dispose();
+        }
+        videoPlayers.clear();
+    }
+
+    private void onDestroy() {
+        // The whole FlutterView is being destroyed. Here we release resources acquired for all instances
+        // of VideoPlayer. Once https://github.com/flutter/flutter/issues/19358 is resolved this may
+        // be replaced with just asserting that videoPlayers.isEmpty().
+        // https://github.com/flutter/flutter/issues/20989 tracks this.
+        disposeAllPlayers();
+    }
+
+    @Override
+    public void onMethodCall(MethodCall call, Result result) {
+        TextureRegistry textures = registrar.textures();
+        if (textures == null) {
+            result.error("no_activity", "video_player plugin requires a foreground activity", null);
+            return;
+        }
+        switch (call.method) {
+            case "init":
+                disposeAllPlayers();
+                break;
+            case "create": {
+                TextureRegistry.SurfaceTextureEntry handle = textures.createSurfaceTexture();
+                EventChannel eventChannel =
+                        new EventChannel(
+                                registrar.messenger(), "flutter.io/videoPlayer/videoEvents" + handle.id());
+
+                VideoPlayer player;
+                if (call.argument("asset") != null) {
+                    String assetLookupKey;
+                    if (call.argument("package") != null) {
+                        assetLookupKey =
+                                registrar.lookupKeyForAsset(call.argument("asset"), call.argument("package"));
+                    } else {
+                        assetLookupKey = registrar.lookupKeyForAsset(call.argument("asset"));
+                    }
+                    player =
+                            new VideoPlayer(
+                                    registrar.context(),
+                                    eventChannel,
+                                    handle,
+                                    "asset:///" + assetLookupKey,
+                                    result);
+                    videoPlayers.put(handle.id(), player);
+                } else {
+                    player =
+                            new VideoPlayer(
+                                    registrar.context(), eventChannel, handle, call.argument("uri"), result);
+                    videoPlayers.put(handle.id(), player);
+                }
+                break;
+            }
+            default: {
+                long textureId = ((Number) call.argument("textureId")).longValue();
+                VideoPlayer player = videoPlayers.get(textureId);
+                if (player == null) {
+                    result.error(
+                            "Unknown textureId",
+                            "No video player associated with texture id " + textureId,
+                            null);
+                    return;
+                }
+                onMethodCall(call, result, textureId, player);
+                break;
+            }
+        }
+    }
+
+    private void onMethodCall(MethodCall call, Result result, long textureId, VideoPlayer player) {
+        switch (call.method) {
+            case "setLooping":
+                player.setLooping(call.argument("looping"));
+                result.success(null);
+                break;
+            case "setVolume":
+                player.setVolume(call.argument("volume"));
+                result.success(null);
+                break;
+            case "play":
+                player.play();
+                result.success(null);
+                break;
+            case "pause":
+                player.pause();
+                result.success(null);
+                break;
+            case "seekTo":
+                int location = ((Number) call.argument("location")).intValue();
+                player.seekTo(location);
+                result.success(null);
+                break;
+            case "position":
+                result.success(player.getPosition());
+                player.sendBufferingUpdate();
+                break;
+            case "dispose":
+                player.dispose();
+                videoPlayers.remove(textureId);
+                result.success(null);
+                break;
+            case "getResolutions":   //获取分辨率
+                result.success(player.getResolutions());
+                break;
+            case "switchResolutions":  //切换分辨率
+                player.switchResolution(((Number) call.argument("trackIndex")).intValue());
+                result.success(null);
+                break;
+            case "download": //缓存视频
+                int trackIndex = ((Number) call.argument("trackIndex")).intValue();
+                String name = call.argument("name");
+                player.download(videoDownloadManager, trackIndex, name);
+                result.success(null);
+                break;
+            default:
+                result.notImplemented();
+                break;
+        }
+    }
 
     private static class VideoPlayer {
 
         private SimpleExoPlayer exoPlayer;
         private DefaultTrackSelector trackSelector;
         private DataSource.Factory dataSourceFactory;
-
+        private RenderersFactory renderersFactory;
         private Surface surface;
-
         private final TextureRegistry.SurfaceTextureEntry textureEntry;
-
         private QueuingEventSink eventSink = new QueuingEventSink();
-
         private final EventChannel eventChannel;
-
         private boolean isInitialized = false;
+        private Uri dataSourceUri;
+        private DownloadHelper downloadHelper;
+        private Context context;
 
         VideoPlayer(
                 Context context,
@@ -86,14 +236,14 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                 Result result) {
             this.eventChannel = eventChannel;
             this.textureEntry = textureEntry;
+            this.dataSourceUri = Uri.parse(dataSource);
+            this.context = context.getApplicationContext();
 
+            renderersFactory = new DefaultRenderersFactory(context);
             trackSelector = new DefaultTrackSelector();
-            exoPlayer = ExoPlayerFactory.newSimpleInstance(context, trackSelector);
-            exoPlayer.addAnalyticsListener(new EventLogger(trackSelector));
+            exoPlayer = ExoPlayerFactory.newSimpleInstance(context, renderersFactory, trackSelector);
 
-            Uri uri = Uri.parse(dataSource);
-
-            if (isFileOrAsset(uri)) {
+            if (isFileOrAsset(dataSourceUri)) {
                 dataSourceFactory = new DefaultDataSourceFactory(context, "ExoPlayer");
             } else {
                 dataSourceFactory =
@@ -105,7 +255,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                                 true);
             }
 
-            MediaSource mediaSource = buildMediaSource(uri, dataSourceFactory, context);
+            MediaSource mediaSource = buildMediaSource(dataSourceUri, dataSourceFactory, context);
             exoPlayer.prepare(mediaSource);
 
             setupVideoPlayer(eventChannel, textureEntry, result);
@@ -279,6 +429,9 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             if (exoPlayer != null) {
                 exoPlayer.release();
             }
+            if (downloadHelper != null) {
+                downloadHelper.release();
+            }
         }
 
         /**
@@ -310,7 +463,6 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             if (!isInitialized) {
                 return;
             }
-            Log.d("switchResolution", "===>trackIndex:" + trackIndex);
             DefaultTrackSelector.Parameters parameters = trackSelector.getParameters();
             MappingTrackSelector.MappedTrackInfo currentMappedTrackInfo = trackSelector.getCurrentMappedTrackInfo();
             if (currentMappedTrackInfo == null || parameters == null) {
@@ -323,147 +475,68 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             parametersBuilder.setSelectionOverride(RENDERER_SUPPORT_NO_TRACKS, trackGroups, selectionOverride);
             trackSelector.setParameters(parametersBuilder);
         }
-    }
 
-    public static void registerWith(Registrar registrar) {
-        final VideoPlayerPlugin plugin = new VideoPlayerPlugin(registrar);
-        final MethodChannel channel =
-                new MethodChannel(registrar.messenger(), "flutter.io/videoPlayer");
-        channel.setMethodCallHandler(plugin);
-        registrar.addViewDestroyListener(
-                new PluginRegistry.ViewDestroyListener() {
-                    @Override
-                    public boolean onViewDestroy(FlutterNativeView view) {
-                        plugin.onDestroy();
-                        return false; // We are not interested in assuming ownership of the NativeView.
-                    }
-                });
-    }
 
-    private VideoPlayerPlugin(Registrar registrar) {
-        this.registrar = registrar;
-        this.videoPlayers = new LongSparseArray<>();
-    }
-
-    private final LongSparseArray<VideoPlayer> videoPlayers;
-
-    private final Registrar registrar;
-
-    private void disposeAllPlayers() {
-        for (int i = 0; i < videoPlayers.size(); i++) {
-            videoPlayers.valueAt(i).dispose();
-        }
-        videoPlayers.clear();
-    }
-
-    private void onDestroy() {
-        // The whole FlutterView is being destroyed. Here we release resources acquired for all instances
-        // of VideoPlayer. Once https://github.com/flutter/flutter/issues/19358 is resolved this may
-        // be replaced with just asserting that videoPlayers.isEmpty().
-        // https://github.com/flutter/flutter/issues/20989 tracks this.
-        disposeAllPlayers();
-    }
-
-    @Override
-    public void onMethodCall(MethodCall call, Result result) {
-        TextureRegistry textures = registrar.textures();
-        if (textures == null) {
-            result.error("no_activity", "video_player plugin requires a foreground activity", null);
-            return;
-        }
-        switch (call.method) {
-            case "init":
-                disposeAllPlayers();
-                break;
-            case "create": {
-                TextureRegistry.SurfaceTextureEntry handle = textures.createSurfaceTexture();
-                EventChannel eventChannel =
-                        new EventChannel(
-                                registrar.messenger(), "flutter.io/videoPlayer/videoEvents" + handle.id());
-
-                VideoPlayer player;
-                if (call.argument("asset") != null) {
-                    String assetLookupKey;
-                    if (call.argument("package") != null) {
-                        assetLookupKey =
-                                registrar.lookupKeyForAsset(call.argument("asset"), call.argument("package"));
-                    } else {
-                        assetLookupKey = registrar.lookupKeyForAsset(call.argument("asset"));
-                    }
-                    player =
-                            new VideoPlayer(
-                                    registrar.context(),
-                                    eventChannel,
-                                    handle,
-                                    "asset:///" + assetLookupKey,
-                                    result);
-                    videoPlayers.put(handle.id(), player);
-                } else {
-                    player =
-                            new VideoPlayer(
-                                    registrar.context(), eventChannel, handle, call.argument("uri"), result);
-                    videoPlayers.put(handle.id(), player);
-                }
-                break;
+        /**
+         * 下载指定分辨率视频，暂时只支持hls
+         *
+         * @param trackIndex
+         */
+        void download(VideoDownloadManager videoDownloadManager, int trackIndex, String downloadNotificationName) {
+            if (isFileOrAsset(dataSourceUri)) {
+                return;
             }
-            default: {
-                long textureId = ((Number) call.argument("textureId")).longValue();
-                VideoPlayer player = videoPlayers.get(textureId);
-                if (player == null) {
-                    result.error(
-                            "Unknown textureId",
-                            "No video player associated with texture id " + textureId,
-                            null);
-                    return;
+            int type = Util.inferContentType(dataSourceUri.getLastPathSegment());
+            switch (type) {
+                case C.TYPE_HLS:
+                    downloadHls(videoDownloadManager, trackIndex, downloadNotificationName);
+                    break;
+                case C.TYPE_DASH:
+                    break;
+                case C.TYPE_OTHER:
+                    break;
+                case C.TYPE_SS:
+                    break;
+                default: {
                 }
-                onMethodCall(call, result, textureId, player);
-                break;
             }
         }
-    }
 
-    private void onMethodCall(MethodCall call, Result result, long textureId, VideoPlayer player) {
-        switch (call.method) {
-            case "setLooping":
-                player.setLooping(call.argument("looping"));
-                result.success(null);
-                break;
-            case "setVolume":
-                player.setVolume(call.argument("volume"));
-                result.success(null);
-                break;
-            case "play":
-                player.play();
-                result.success(null);
-                break;
-            case "pause":
-                player.pause();
-                result.success(null);
-                break;
-            case "seekTo":
-                int location = ((Number) call.argument("location")).intValue();
-                player.seekTo(location);
-                result.success(null);
-                break;
-            case "position":
-                result.success(player.getPosition());
-                player.sendBufferingUpdate();
-                break;
-            case "dispose":
-                player.dispose();
-                videoPlayers.remove(textureId);
-                result.success(null);
-                break;
-            case "getResolutions":   //获取分辨率
-                result.success(player.getResolutions());
-                break;
-            case "switchResolutions":
-                player.switchResolution(((Number) call.argument("trackIndex")).intValue());
-                result.success(null);
-                break;
-            default:
-                result.notImplemented();
-                break;
+        private void downloadHls(VideoDownloadManager videoDownloadManager, int trackIndex, String downloadNotificationName) {
+            if (downloadHelper != null) {
+                downloadHelper.release();
+            }
+            downloadHelper = DownloadHelper.forHls(dataSourceUri, dataSourceFactory, renderersFactory);
+            downloadHelper.prepare(new DownloadHelper.Callback() {
+                @Override
+                public void onPrepared(DownloadHelper helper) {
+                    MappingTrackSelector.MappedTrackInfo mappedTrackInfo = helper.getMappedTrackInfo(0);
+                    for (int periodIndex = 0; periodIndex < helper.getPeriodCount(); periodIndex++) {
+                        helper.clearTrackSelections(periodIndex);
+                        if (mappedTrackInfo != null) {
+                            DefaultTrackSelector.SelectionOverride selectionOverride = new DefaultTrackSelector.SelectionOverride(0, trackIndex);
+                            List<DefaultTrackSelector.SelectionOverride> list = new ArrayList<>();
+                            list.add(selectionOverride);
+                            helper.addTrackSelectionForSingleRenderer(periodIndex, 0, DownloadHelper.DEFAULT_TRACK_SELECTOR_PARAMETERS, list);
+                        }
+                    }
+                    DownloadRequest downloadRequest = helper.getDownloadRequest(Util.getUtf8Bytes(downloadNotificationName));
+                    DownloadService.sendAddDownload(context, VideoDownloadService.class, downloadRequest, false);
+                }
+
+                @Override
+                public void onPrepareError(DownloadHelper helper, IOException e) {
+                    e.printStackTrace();
+                }
+            });
+
+            videoDownloadManager.getDownloadTracker().addListener(new VideoDownloadTracker.Listener() {
+                @Override
+                public void onDownloadsChanged() {
+                    Download download = videoDownloadManager.getDownloadTracker().getDownload(dataSourceUri);
+                    Log.d("下载", "===>" + download == null ? "null" : download.getPercentDownloaded() + "");
+                }
+            });
         }
     }
 }

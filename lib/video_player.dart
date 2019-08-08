@@ -397,6 +397,9 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
 
   ///获取分辨率
   Future<Map<int, String>> getResolutions() async {
+    if (!value.initialized || _isDisposed) {
+      return null;
+    }
     final Map<String, dynamic> response = await _channel.invokeMapMethod<String, dynamic>(
       'getResolutions',
       <String, dynamic>{'textureId': _textureId},
@@ -405,6 +408,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     return resolutions;
   }
 
+  ///切换分辨率
   Future<void> switchResolutions(int trackIndex) async {
     if (!value.initialized || _isDisposed) {
       return;
@@ -412,6 +416,13 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     await _channel.invokeMethod<void>(
       'switchResolutions',
       <String, dynamic>{'textureId': _textureId, 'trackIndex': trackIndex},
+    );
+  }
+
+  Future<void> download(int trackIndex, String name) async {
+    await _channel.invokeMethod<void>(
+      'download',
+      <String, dynamic>{'textureId': _textureId, 'trackIndex': trackIndex, 'name': name},
     );
   }
 }
