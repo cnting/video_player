@@ -419,10 +419,22 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     );
   }
 
+  ///下载
   Future<void> download(int trackIndex, String name) async {
     await _channel.invokeMethod<void>(
       'download',
       <String, dynamic>{'textureId': _textureId, 'trackIndex': trackIndex, 'name': name},
+    );
+  }
+
+  ///设置倍速
+  Future<void> setSpeed(double speed) async {
+    if (!value.initialized || _isDisposed) {
+      return null;
+    }
+    await _channel.invokeMethod<void>(
+      'setSpeed',
+      <String, dynamic>{'textureId': _textureId, 'speed': speed},
     );
   }
 }

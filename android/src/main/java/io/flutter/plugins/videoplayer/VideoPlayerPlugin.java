@@ -16,6 +16,7 @@ import com.google.android.exoplayer2.DefaultRenderersFactory;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.PlaybackParameters;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.Player.EventListener;
 import com.google.android.exoplayer2.RenderersFactory;
@@ -205,6 +206,11 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                 int trackIndex = ((Number) call.argument("trackIndex")).intValue();
                 String name = call.argument("name");
                 player.download(videoDownloadManager, trackIndex, name);
+                result.success(null);
+                break;
+            case "setSpeed":
+                double speed = ((Number) call.argument("speed")).doubleValue();
+                player.setSpeed(speed);
                 result.success(null);
                 break;
             default:
@@ -537,6 +543,14 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                     Log.d("下载", "===>" + download == null ? "null" : download.getPercentDownloaded() + "");
                 }
             });
+        }
+
+        void setSpeed(double speed) {
+            if (!isInitialized) {
+                return;
+            }
+            PlaybackParameters playbackParameters = new PlaybackParameters((float) speed);
+            exoPlayer.setPlaybackParameters(playbackParameters);
         }
     }
 }

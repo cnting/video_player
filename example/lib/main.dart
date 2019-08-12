@@ -466,6 +466,12 @@ class _ResolutionsWidgetState extends State<ResolutionsWidget> {
             ?.toList() ??
         [];
     widgets.addAll(btns);
+    widgets.add(RaisedButton(
+      child: Text('设置倍速2.0'),
+      onPressed: () {
+        widget.controller.setSpeed(2);
+      },
+    ));
 
     return Column(
       children: widgets,
