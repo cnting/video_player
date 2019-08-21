@@ -325,12 +325,13 @@ public class VideoPlayerPlugin implements MethodCallHandler {
 
             exoPlayer.addListener(
                     new EventListener() {
-
                         @Override
                         public void onPlayerStateChanged(final boolean playWhenReady, final int playbackState) {
                             if (playbackState == Player.STATE_BUFFERING) {
+                                sendBufferingStart();
                                 sendBufferingUpdate();
                             } else if (playbackState == Player.STATE_READY) {
+                                sendBufferingEnd();
                                 if (!isInitialized) {
                                     isInitialized = true;
                                     sendInitialized();
@@ -353,6 +354,17 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             Map<String, Object> reply = new HashMap<>();
             reply.put("textureId", textureEntry.id());
             result.success(reply);
+        }
+
+        private void sendBufferingStart() {
+            Map<String, Object> event = new HashMap<>();
+            event.put("event", "bufferingStart");
+            eventSink.success(event);
+        }
+        private void sendBufferingEnd() {
+            Map<String, Object> event = new HashMap<>();
+            event.put("event", "bufferingEnd");
+            eventSink.success(event);
         }
 
         private void sendBufferingUpdate() {
