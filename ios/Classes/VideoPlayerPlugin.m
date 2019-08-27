@@ -6,6 +6,12 @@
 #import <AVFoundation/AVFoundation.h>
 #import <GLKit/GLKit.h>
 
+static NSString* const METHOD_CHANGE_ORIENTATION = @"change_screen_orientation";
+static NSString* const ORIENTATION_PORTRAIT_UP = @"portraitUp";
+static NSString* const ORIENTATION_PORTRAIT_DOWN = @"portraitDown";
+static NSString* const ORIENTATION_LANDSCAPE_LEFT = @"landscapeLeft";
+static NSString* const ORIENTATION_LANDSCAPE_RIGHT = @"landscapeRight";
+
 int64_t FLTCMTimeToMillis(CMTime time) {
   if (time.timescale == 0) return 0;
   return time.value * 1000 / time.timescale;
@@ -480,6 +486,29 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
       result(FlutterMethodNotImplemented);
     }
 
+  }else if ([METHOD_CHANGE_ORIENTATION isEqualToString:call.method]) {
+      NSArray *arguments = call.arguments;
+      NSString *orientation = arguments[0];
+      bool isLandscape = NO;
+      NSInteger iOSOrientation;
+      if ([orientation isEqualToString:ORIENTATION_LANDSCAPE_LEFT]){
+          iOSOrientation = UIDeviceOrientationLandscapeLeft;
+          isLandscape = YES;
+      }else if([orientation isEqualToString:ORIENTATION_LANDSCAPE_RIGHT]){
+          iOSOrientation = UIDeviceOrientationLandscapeRight;
+          isLandscape = YES;
+      }else if ([orientation isEqualToString:ORIENTATION_PORTRAIT_DOWN]){
+          iOSOrientation = UIDeviceOrientationPortraitUpsideDown;
+          isLandscape = NO;
+      }else{
+          iOSOrientation = UIDeviceOrientationPortrait;
+          isLandscape = NO;
+      }
+      [[NSUserDefaults standardUserDefaults] setBool:isLandscape forKey:@"videoPlayerPlugin_isLandscape"];
+      [[NSUserDefaults standardUserDefaults] synchronize];
+      [[UIDevice currentDevice] setValue:@(iOSOrientation) forKey:@"orientation"];
+      result(nil);
+      
   } else {
     NSDictionary* argsMap = call.arguments;
     int64_t textureId = ((NSNumber*)argsMap[@"textureId"]).unsignedIntegerValue;

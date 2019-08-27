@@ -196,7 +196,10 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     Map<dynamic, dynamic> dataSourceDescription;
     switch (dataSourceType) {
       case DataSourceType.asset:
-        dataSourceDescription = <String, dynamic>{'asset': dataSource, 'package': package};
+        dataSourceDescription = <String, dynamic>{
+          'asset': dataSource,
+          'package': package
+        };
         break;
       case DataSourceType.network:
         dataSourceDescription = <String, dynamic>{'uri': dataSource};
@@ -204,7 +207,8 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       case DataSourceType.file:
         dataSourceDescription = <String, dynamic>{'uri': dataSource};
     }
-    final Map<String, dynamic> response = await _channel.invokeMapMethod<String, dynamic>(
+    final Map<String, dynamic> response =
+        await _channel.invokeMapMethod<String, dynamic>(
       'create',
       dataSourceDescription,
     );
@@ -230,7 +234,8 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         case 'initialized':
           value = value.copyWith(
             duration: Duration(milliseconds: map['duration']),
-            size: Size(map['width']?.toDouble() ?? 0.0, map['height']?.toDouble() ?? 0.0),
+            size: Size(map['width']?.toDouble() ?? 0.0,
+                map['height']?.toDouble() ?? 0.0),
           );
           initializingCompleter.complete(null);
           _applyLooping();
@@ -289,6 +294,28 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     }
     _isDisposed = true;
     super.dispose();
+  }
+
+  Future<void> changeScreenOrientation(DeviceOrientation orientation) async {
+    if (!value.initialized || _isDisposed) {
+      return;
+    }
+    String o;
+    switch (orientation) {
+      case DeviceOrientation.portraitUp:
+        o = 'portraitUp';
+        break;
+      case DeviceOrientation.portraitDown:
+        o = 'portraitDown';
+        break;
+      case DeviceOrientation.landscapeLeft:
+        o = 'landscapeLeft';
+        break;
+      case DeviceOrientation.landscapeRight:
+        o = 'landscapeRight';
+        break;
+    }
+    await _channel.invokeMethod<void>('change_screen_orientation', [o]);
   }
 
   Future<void> play() async {
@@ -400,11 +427,13 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     if (!value.initialized || _isDisposed) {
       return null;
     }
-    final Map<String, dynamic> response = await _channel.invokeMapMethod<String, dynamic>(
+    final Map<String, dynamic> response =
+        await _channel.invokeMapMethod<String, dynamic>(
       'getResolutions',
       <String, dynamic>{'textureId': _textureId},
     );
-    Map<int, String> resolutions = Map<int, String>.from(response['resolutions']);
+    Map<int, String> resolutions =
+        Map<int, String>.from(response['resolutions']);
     return resolutions;
   }
 
@@ -423,7 +452,11 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   Future<void> download(int trackIndex, String name) async {
     await _channel.invokeMethod<void>(
       'download',
-      <String, dynamic>{'textureId': _textureId, 'trackIndex': trackIndex, 'name': name},
+      <String, dynamic>{
+        'textureId': _textureId,
+        'trackIndex': trackIndex,
+        'name': name
+      },
     );
   }
 
