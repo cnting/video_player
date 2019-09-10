@@ -18,3 +18,4 @@ example/build
 example/.flutter-plugins
 example/.packages
 .packages
+android/local.properties
