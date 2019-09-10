@@ -506,9 +506,6 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
       }
       [[NSUserDefaults standardUserDefaults] setBool:isLandscape forKey:@"videoPlayerPlugin_isLandscape"];
       [[NSUserDefaults standardUserDefaults] synchronize];
-      if (isLandscape) {
-//          [[UIDevice currentDevice] setValue:@(iOSOrientation) forKey:@"orientation"];
-      }
       result(nil);
       
   } else {
