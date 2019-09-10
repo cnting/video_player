@@ -296,6 +296,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     super.dispose();
   }
 
+  ///iOS——fix
   Future<void> changeScreenOrientation(DeviceOrientation orientation) async {
     if (!value.initialized || _isDisposed) {
       return;
