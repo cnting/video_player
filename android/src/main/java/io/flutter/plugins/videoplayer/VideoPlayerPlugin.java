@@ -43,6 +43,7 @@ import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.util.Util;
+import com.google.android.exoplayer2.video.VideoListener;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -331,6 +332,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                                 sendBufferingStart();
                                 sendBufferingUpdate();
                             } else if (playbackState == Player.STATE_READY) {
+                                sendPlayStateChange(playWhenReady);
                                 sendBufferingEnd();
                                 if (!isInitialized) {
                                     isInitialized = true;
@@ -361,6 +363,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             event.put("event", "bufferingStart");
             eventSink.success(event);
         }
+
         private void sendBufferingEnd() {
             Map<String, Object> event = new HashMap<>();
             event.put("event", "bufferingEnd");
@@ -376,6 +379,13 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             eventSink.success(event);
         }
 
+        private void sendPlayStateChange(boolean playWhenReady) {
+            Map<String, Object> event = new HashMap<>();
+            event.put("event", "playStateChanged");
+            event.put("isPlaying", playWhenReady);
+            eventSink.success(event);
+        }
+
         @SuppressWarnings("deprecation")
         private static void setAudioAttributes(SimpleExoPlayer exoPlayer) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
@@ -387,6 +397,11 @@ public class VideoPlayerPlugin implements MethodCallHandler {
         }
 
         void play() {
+            if (exoPlayer.getPlaybackState() == Player.STATE_IDLE) {
+                exoPlayer.retry();
+            } else if (exoPlayer.getPlaybackState() == Player.STATE_ENDED) {
+                seekTo(0);
+            }
             exoPlayer.setPlayWhenReady(true);
         }
 

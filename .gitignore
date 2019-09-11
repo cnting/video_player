@@ -19,3 +19,6 @@ example/.flutter-plugins
 example/.packages
 .packages
 android/local.properties
+android/build
+android/build/intermediates
+*.lock

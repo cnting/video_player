@@ -49,7 +49,7 @@ class VideoPlayerValue {
 
   VideoPlayerValue.uninitialized() : this(duration: null);
 
-  VideoPlayerValue.erroneous(String errorDescription)
+  VideoPlayerValue.erroneous(Duration duration, String errorDescription)
       : this(duration: null, errorDescription: errorDescription);
 
   /// The total duration of the video.
@@ -91,17 +91,17 @@ class VideoPlayerValue {
 
   double get aspectRatio => size != null ? size.width / size.height : 1.0;
 
-  VideoPlayerValue copyWith({
-    Duration duration,
-    Size size,
-    Duration position,
-    List<DurationRange> buffered,
-    bool isPlaying,
-    bool isLooping,
-    bool isBuffering,
-    double volume,
-    String errorDescription,
-  }) {
+  VideoPlayerValue copyWith(
+      {Duration duration,
+      Size size,
+      Duration position,
+      List<DurationRange> buffered,
+      bool isPlaying,
+      bool isLooping,
+      bool isBuffering,
+      double volume,
+      String errorDescription,
+      bool forceSetErrorDescription = false}) {
     return VideoPlayerValue(
       duration: duration ?? this.duration,
       size: size ?? this.size,
@@ -111,7 +111,8 @@ class VideoPlayerValue {
       isLooping: isLooping ?? this.isLooping,
       isBuffering: isBuffering ?? this.isBuffering,
       volume: volume ?? this.volume,
-      errorDescription: errorDescription ?? this.errorDescription,
+      errorDescription:
+          forceSetErrorDescription ? errorDescription : (errorDescription ?? this.errorDescription),
     );
   }
 
@@ -196,10 +197,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     Map<dynamic, dynamic> dataSourceDescription;
     switch (dataSourceType) {
       case DataSourceType.asset:
-        dataSourceDescription = <String, dynamic>{
-          'asset': dataSource,
-          'package': package
-        };
+        dataSourceDescription = <String, dynamic>{'asset': dataSource, 'package': package};
         break;
       case DataSourceType.network:
         dataSourceDescription = <String, dynamic>{'uri': dataSource};
@@ -207,8 +205,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       case DataSourceType.file:
         dataSourceDescription = <String, dynamic>{'uri': dataSource};
     }
-    final Map<String, dynamic> response =
-        await _channel.invokeMapMethod<String, dynamic>(
+    final Map<String, dynamic> response = await _channel.invokeMapMethod<String, dynamic>(
       'create',
       dataSourceDescription,
     );
@@ -233,38 +230,56 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       switch (map['event']) {
         case 'initialized':
           value = value.copyWith(
-            duration: Duration(milliseconds: map['duration']),
-            size: Size(map['width']?.toDouble() ?? 0.0,
-                map['height']?.toDouble() ?? 0.0),
-          );
+              duration: Duration(milliseconds: map['duration']),
+              size: Size(map['width']?.toDouble() ?? 0.0, map['height']?.toDouble() ?? 0.0),
+              errorDescription: null,
+              forceSetErrorDescription: true);
           initializingCompleter.complete(null);
           _applyLooping();
           _applyVolume();
-          _applyPlayPause();
+          _applyPlayPause(value.isPlaying);
           break;
         case 'completed':
           value = value.copyWith(isPlaying: false, position: value.duration);
-          _timer?.cancel();
+          _cancelTimer();
           break;
         case 'bufferingUpdate':
           final List<dynamic> values = map['values'];
-          value = value.copyWith(
-            buffered: values.map<DurationRange>(toDurationRange).toList(),
-          );
+          value = value.copyWith(buffered: values.map<DurationRange>(toDurationRange).toList());
           break;
         case 'bufferingStart':
-          value = value.copyWith(isBuffering: true);
+          value = value.copyWith(
+            isBuffering: true,
+          );
           break;
         case 'bufferingEnd':
-          value = value.copyWith(isBuffering: false);
+          value = value.copyWith(
+            isBuffering: false,
+          );
+          break;
+        case 'playStateChanged': // TODO: iOS需要回调该方法
+          final bool isPlaying = map['isPlaying'];
+
+          if (isPlaying && !(_timer?.isActive ?? false)) {
+            _startTimer();
+          } else if (!isPlaying) {
+            _cancelTimer();
+          }
+          value = value.copyWith(
+              isPlaying: isPlaying, errorDescription: null, forceSetErrorDescription: true);
           break;
       }
     }
 
     void errorListener(Object obj) {
       final PlatformException e = obj;
-      value = VideoPlayerValue.erroneous(e.message);
-      _timer?.cancel();
+      if (value == null) {
+        value = VideoPlayerValue.erroneous(null, e.message);
+      } else {
+        value = value.copyWith(isPlaying: false, errorDescription: e.message);
+      }
+
+      _cancelTimer();
     }
 
     _eventSubscription = _eventChannelFor(_textureId)
@@ -283,7 +298,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       await _creatingCompleter.future;
       if (!_isDisposed) {
         _isDisposed = true;
-        _timer?.cancel();
+        _cancelTimer();
         await _eventSubscription?.cancel();
         await _channel.invokeMethod<void>(
           'dispose',
@@ -296,32 +311,9 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     super.dispose();
   }
 
-  ///iOS——fix
-  Future<void> changeScreenOrientation(DeviceOrientation orientation) async {
-    if (!value.initialized || _isDisposed) {
-      return;
-    }
-    String o;
-    switch (orientation) {
-      case DeviceOrientation.portraitUp:
-        o = 'portraitUp';
-        break;
-      case DeviceOrientation.portraitDown:
-        o = 'portraitDown';
-        break;
-      case DeviceOrientation.landscapeLeft:
-        o = 'landscapeLeft';
-        break;
-      case DeviceOrientation.landscapeRight:
-        o = 'landscapeRight';
-        break;
-    }
-    await _channel.invokeMethod<void>('change_screen_orientation', [o]);
-  }
-
   Future<void> play() async {
-    value = value.copyWith(isPlaying: true);
-    await _applyPlayPause();
+//    value = value.copyWith(isPlaying: true);
+    await _applyPlayPause(true);
   }
 
   Future<void> setLooping(bool looping) async {
@@ -330,8 +322,8 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   }
 
   Future<void> pause() async {
-    value = value.copyWith(isPlaying: false);
-    await _applyPlayPause();
+//    value = value.copyWith(isPlaying: false);
+    await _applyPlayPause(false);
   }
 
   Future<void> _applyLooping() async {
@@ -344,35 +336,43 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     );
   }
 
-  Future<void> _applyPlayPause() async {
+  Future<void> _applyPlayPause(bool isPlay) async {
     if (!value.initialized || _isDisposed) {
       return;
     }
-    if (value.isPlaying) {
+    if (isPlay) {
       await _channel.invokeMethod<void>(
         'play',
         <String, dynamic>{'textureId': _textureId},
       );
-      _timer = Timer.periodic(
-        const Duration(milliseconds: 500),
-        (Timer timer) async {
-          if (_isDisposed) {
-            return;
-          }
-          final Duration newPosition = await position;
-          if (_isDisposed) {
-            return;
-          }
-          value = value.copyWith(position: newPosition);
-        },
-      );
+//      _startTimer();
     } else {
-      _timer?.cancel();
+      _cancelTimer();
       await _channel.invokeMethod<void>(
         'pause',
         <String, dynamic>{'textureId': _textureId},
       );
     }
+  }
+
+  _startTimer() {
+    _timer = Timer.periodic(
+      const Duration(milliseconds: 500),
+      (Timer timer) async {
+        if (_isDisposed) {
+          return;
+        }
+        final Duration newPosition = await position;
+        if (_isDisposed) {
+          return;
+        }
+        value = value.copyWith(position: newPosition);
+      },
+    );
+  }
+
+  _cancelTimer() {
+    _timer?.cancel();
   }
 
   Future<void> _applyVolume() async {
@@ -428,13 +428,11 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     if (!value.initialized || _isDisposed) {
       return null;
     }
-    final Map<String, dynamic> response =
-        await _channel.invokeMapMethod<String, dynamic>(
+    final Map<String, dynamic> response = await _channel.invokeMapMethod<String, dynamic>(
       'getResolutions',
       <String, dynamic>{'textureId': _textureId},
     );
-    Map<int, String> resolutions =
-        Map<int, String>.from(response['resolutions']);
+    Map<int, String> resolutions = Map<int, String>.from(response['resolutions']);
     return resolutions;
   }
 
@@ -453,11 +451,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   Future<void> download(int trackIndex, String name) async {
     await _channel.invokeMethod<void>(
       'download',
-      <String, dynamic>{
-        'textureId': _textureId,
-        'trackIndex': trackIndex,
-        'name': name
-      },
+      <String, dynamic>{'textureId': _textureId, 'trackIndex': trackIndex, 'name': name},
     );
   }
 
@@ -470,6 +464,29 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       'setSpeed',
       <String, dynamic>{'textureId': _textureId, 'speed': speed},
     );
+  }
+
+  ///iOS——fix
+  Future<void> changeScreenOrientation(DeviceOrientation orientation) async {
+    if (!value.initialized || _isDisposed) {
+      return;
+    }
+    String o;
+    switch (orientation) {
+      case DeviceOrientation.portraitUp:
+        o = 'portraitUp';
+        break;
+      case DeviceOrientation.portraitDown:
+        o = 'portraitDown';
+        break;
+      case DeviceOrientation.landscapeLeft:
+        o = 'landscapeLeft';
+        break;
+      case DeviceOrientation.landscapeRight:
+        o = 'landscapeRight';
+        break;
+    }
+    await _channel.invokeMethod<void>('change_screen_orientation', [o]);
   }
 }
 
