@@ -263,9 +263,17 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
                     message:[@"Failed to load video: "
                                 stringByAppendingString:[item.error localizedDescription]]
                     details:nil]);
+            _eventSink(@{@"event" : @"playStateChanged",
+                         @"isPlaying":[NSNumber numberWithBool:false]
+                         });
         }
         break;
       case AVPlayerItemStatusUnknown:
+            if (_eventSink != nil) {
+                _eventSink(@{@"event" : @"playStateChanged",
+                             @"isPlaying":[NSNumber numberWithBool:false]
+                             });
+            }
         break;
       case AVPlayerItemStatusReadyToPlay:
         [item addOutput:_videoOutput];
@@ -296,6 +304,11 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     return;
   }
   if (_isPlaying) {
+      if (_eventSink != nil) {
+          _eventSink(@{@"event" : @"playStateChanged",
+                       @"isPlaying":[NSNumber numberWithBool:true]
+                       });
+      }
     [_player play];
   } else {
     [_player pause];
