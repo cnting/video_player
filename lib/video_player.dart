@@ -257,7 +257,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
             isBuffering: false,
           );
           break;
-        case 'playStateChanged': // TODO: iOS需要回调该方法
+        case 'playStateChanged':
           final bool isPlaying = map['isPlaying'];
 
           if (isPlaying && !(_timer?.isActive ?? false)) {
@@ -504,6 +504,7 @@ class _VideoAppLifeCycleObserver extends Object with WidgetsBindingObserver {
   void didChangeAppLifecycleState(AppLifecycleState state) {
     switch (state) {
       case AppLifecycleState.paused:
+      case AppLifecycleState.inactive:
         _wasPlayingBeforePause = _controller.value.isPlaying;
         _controller.pause();
         break;
