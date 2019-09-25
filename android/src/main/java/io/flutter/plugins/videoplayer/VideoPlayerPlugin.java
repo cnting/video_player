@@ -43,7 +43,6 @@ import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.util.Util;
-import com.google.android.exoplayer2.video.VideoListener;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -58,9 +57,7 @@ import io.flutter.plugin.common.MethodCall;
 import io.flutter.plugin.common.MethodChannel;
 import io.flutter.plugin.common.MethodChannel.MethodCallHandler;
 import io.flutter.plugin.common.MethodChannel.Result;
-import io.flutter.plugin.common.PluginRegistry;
 import io.flutter.plugin.common.PluginRegistry.Registrar;
-import io.flutter.view.FlutterNativeView;
 import io.flutter.view.TextureRegistry;
 
 import static com.google.android.exoplayer2.Player.REPEAT_MODE_ALL;
@@ -332,8 +329,8 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                                 sendBufferingStart();
                                 sendBufferingUpdate();
                             } else if (playbackState == Player.STATE_READY) {
-                                sendPlayStateChange(playWhenReady);
                                 sendBufferingEnd();
+                                sendPlayStateChange(playWhenReady);
                                 if (!isInitialized) {
                                     isInitialized = true;
                                     sendInitialized();
@@ -349,6 +346,15 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                         public void onPlayerError(final ExoPlaybackException error) {
                             if (eventSink != null) {
                                 eventSink.error("VideoError", "Video player had error " + error, null);
+                            }
+                        }
+
+                        @Override
+                        public void onLoadingChanged(boolean isLoading) {
+                            if(isLoading){
+                                sendBufferingStart();
+                            }else{
+                                sendBufferingEnd();
                             }
                         }
                     });
