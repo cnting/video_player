@@ -227,7 +227,6 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       }
 
       final Map<dynamic, dynamic> map = event;
-      print('===>${map['event']}');
       switch (map['event']) {
         case 'initialized':
           value = value.copyWith(
