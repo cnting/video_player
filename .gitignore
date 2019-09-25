@@ -21,4 +21,6 @@ example/.packages
 android/local.properties
 android/build
 android/build/intermediates
+android/build/generated
 *.lock
+android/.gradle
