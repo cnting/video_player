@@ -351,6 +351,10 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   [self updatePlayingState];
 }
 
+- (void)setRote:(float)rote {
+    [_player setRate:rote];
+}
+
 - (int64_t)position {
   return FLTCMTimeToMillis([_player currentTime]);
 }
@@ -548,8 +552,10 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     } else if ([@"pause" isEqualToString:call.method]) {
       [player pause];
       result(nil);
+    } else if ([@"setSpeed" isEqualToString:call.method]) {
+        [player setRote:[argsMap[@"speed"] floatValue]];
     } else {
-      result(FlutterMethodNotImplemented);
+        result(FlutterMethodNotImplemented);
     }
   }
 }
