@@ -3,6 +3,7 @@
 // found in the LICENSE file.
 
 import 'dart:async';
+import 'dart:core';
 import 'dart:io';
 
 import 'package:flutter/services.dart';
@@ -44,6 +45,7 @@ class VideoPlayerValue {
     this.isLooping = false,
     this.isBuffering = false,
     this.volume = 1.0,
+    this.speed = 1.0,
     this.errorDescription,
   });
 
@@ -75,6 +77,9 @@ class VideoPlayerValue {
   /// The current volume of the playback.
   final double volume;
 
+  ///速度
+  final double speed;
+
   /// A description of the error if present.
   ///
   /// If [hasError] is false this is [null].
@@ -100,6 +105,7 @@ class VideoPlayerValue {
       bool isLooping,
       bool isBuffering,
       double volume,
+      double speed,
       String errorDescription,
       bool forceSetErrorDescription = false}) {
     return VideoPlayerValue(
@@ -111,6 +117,7 @@ class VideoPlayerValue {
       isLooping: isLooping ?? this.isLooping,
       isBuffering: isBuffering ?? this.isBuffering,
       volume: volume ?? this.volume,
+      speed: speed ?? this.speed,
       errorDescription:
           forceSetErrorDescription ? errorDescription : (errorDescription ?? this.errorDescription),
     );
@@ -460,6 +467,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     if (!value.initialized || _isDisposed) {
       return null;
     }
+    value = value.copyWith(speed: speed);
     await _channel.invokeMethod<void>(
       'setSpeed',
       <String, dynamic>{'textureId': _textureId, 'speed': speed},

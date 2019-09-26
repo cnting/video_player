@@ -349,14 +349,14 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                             }
                         }
 
-                        @Override
-                        public void onLoadingChanged(boolean isLoading) {
-                            if(isLoading){
-                                sendBufferingStart();
-                            }else{
-                                sendBufferingEnd();
-                            }
-                        }
+//                        @Override
+//                        public void onLoadingChanged(boolean isLoading) {
+//                            if(isLoading){
+//                                sendBufferingStart();
+//                            }else{
+//                                sendBufferingEnd();
+//                            }
+//                        }
                     });
 
             Map<String, Object> reply = new HashMap<>();
