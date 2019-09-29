@@ -498,6 +498,11 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             return event;
         }
 
+        /**
+         * 切换清晰度
+         * https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/trackselection/DefaultTrackSelector.html
+         * @param trackIndex
+         */
         void switchResolution(int trackIndex) {
             if (!isInitialized) {
                 return;
