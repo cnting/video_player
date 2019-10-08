@@ -311,6 +311,11 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
       }
     [_player play];
   } else {
+      if (_eventSink != nil) {
+          _eventSink(@{@"event" : @"playStateChanged",
+                       @"isPlaying":[NSNumber numberWithBool:false]
+                       });
+      }
     [_player pause];
   }
   _displayLink.paused = !_isPlaying;
