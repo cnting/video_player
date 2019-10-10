@@ -38,6 +38,7 @@ import com.google.android.exoplayer2.source.smoothstreaming.DefaultSsChunkSource
 import com.google.android.exoplayer2.source.smoothstreaming.SsMediaSource;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
 import com.google.android.exoplayer2.trackselection.MappingTrackSelector;
+import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
@@ -62,7 +63,6 @@ import io.flutter.view.TextureRegistry;
 
 import static com.google.android.exoplayer2.Player.REPEAT_MODE_ALL;
 import static com.google.android.exoplayer2.Player.REPEAT_MODE_OFF;
-import static com.google.android.exoplayer2.trackselection.MappingTrackSelector.MappedTrackInfo.RENDERER_SUPPORT_NO_TRACKS;
 
 public class VideoPlayerPlugin implements MethodCallHandler {
 
@@ -231,6 +231,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
         private Uri dataSourceUri;
         private DownloadHelper downloadHelper;
         private Context context;
+        private final int videoRenererIndex = 0;
 
         VideoPlayer(
                 Context context,
@@ -357,11 +358,26 @@ public class VideoPlayerPlugin implements MethodCallHandler {
 //                                sendBufferingEnd();
 //                            }
 //                        }
+
+
+                        @Override
+                        public void onTracksChanged(TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
+                            if (trackSelections != null && trackSelections.length > 0) {
+                                sendResolutionChange(trackSelections.get(0).getSelectedIndexInTrackGroup());
+                            }
+                        }
                     });
 
             Map<String, Object> reply = new HashMap<>();
             reply.put("textureId", textureEntry.id());
             result.success(reply);
+        }
+
+        private void sendResolutionChange(int trackIndex) {
+            Map<String, Object> event = new HashMap<>();
+            event.put("event", "resolutionChange");
+            event.put("index", trackIndex);
+            eventSink.success(event);
         }
 
         private void sendBufferingStart() {
@@ -485,7 +501,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                 return null;
             }
             Map<Integer, String> map = new HashMap<>();
-            TrackGroupArray trackGroups = currentMappedTrackInfo.getTrackGroups(RENDERER_SUPPORT_NO_TRACKS);
+            TrackGroupArray trackGroups = currentMappedTrackInfo.getTrackGroups(videoRenererIndex);
             for (int groupIndex = 0; groupIndex < trackGroups.length; groupIndex++) {
                 TrackGroup trackGroup = trackGroups.get(groupIndex);
                 for (int trackIndex = 0; trackIndex < trackGroup.length; trackIndex++) {
@@ -501,6 +517,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
         /**
          * 切换清晰度
          * https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/trackselection/DefaultTrackSelector.html
+         *
          * @param trackIndex
          */
         void switchResolution(int trackIndex) {
@@ -512,11 +529,11 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             if (currentMappedTrackInfo == null || parameters == null) {
                 return;
             }
-            TrackGroupArray trackGroups = currentMappedTrackInfo.getTrackGroups(RENDERER_SUPPORT_NO_TRACKS);
+            TrackGroupArray trackGroups = currentMappedTrackInfo.getTrackGroups(videoRenererIndex);
             DefaultTrackSelector.ParametersBuilder parametersBuilder = parameters.buildUpon();
             parametersBuilder.clearSelectionOverrides();
             DefaultTrackSelector.SelectionOverride selectionOverride = new DefaultTrackSelector.SelectionOverride(0, trackIndex);
-            parametersBuilder.setSelectionOverride(RENDERER_SUPPORT_NO_TRACKS, trackGroups, selectionOverride);
+            parametersBuilder.setSelectionOverride(videoRenererIndex, trackGroups, selectionOverride);
             trackSelector.setParameters(parametersBuilder);
         }
 

@@ -46,6 +46,7 @@ class VideoPlayerValue {
     this.isBuffering = false,
     this.volume = 1.0,
     this.speed = 1.0,
+    this.resolutionIndex,
     this.errorDescription,
   });
 
@@ -80,6 +81,9 @@ class VideoPlayerValue {
   ///速度
   final double speed;
 
+  ///当前分辨率
+  final int resolutionIndex;
+
   /// A description of the error if present.
   ///
   /// If [hasError] is false this is [null].
@@ -106,6 +110,7 @@ class VideoPlayerValue {
       bool isBuffering,
       double volume,
       double speed,
+      int resolutionIndex,
       String errorDescription,
       bool forceSetErrorDescription = false}) {
     return VideoPlayerValue(
@@ -118,8 +123,10 @@ class VideoPlayerValue {
       isBuffering: isBuffering ?? this.isBuffering,
       volume: volume ?? this.volume,
       speed: speed ?? this.speed,
-      errorDescription:
-          forceSetErrorDescription ? errorDescription : (errorDescription ?? this.errorDescription),
+      resolutionIndex: resolutionIndex ?? this.resolutionIndex,
+      errorDescription: forceSetErrorDescription
+          ? errorDescription
+          : (errorDescription ?? this.errorDescription),
     );
   }
 
@@ -204,7 +211,10 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     Map<dynamic, dynamic> dataSourceDescription;
     switch (dataSourceType) {
       case DataSourceType.asset:
-        dataSourceDescription = <String, dynamic>{'asset': dataSource, 'package': package};
+        dataSourceDescription = <String, dynamic>{
+          'asset': dataSource,
+          'package': package
+        };
         break;
       case DataSourceType.network:
         dataSourceDescription = <String, dynamic>{'uri': dataSource};
@@ -212,7 +222,8 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       case DataSourceType.file:
         dataSourceDescription = <String, dynamic>{'uri': dataSource};
     }
-    final Map<String, dynamic> response = await _channel.invokeMapMethod<String, dynamic>(
+    final Map<String, dynamic> response =
+        await _channel.invokeMapMethod<String, dynamic>(
       'create',
       dataSourceDescription,
     );
@@ -238,7 +249,8 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         case 'initialized':
           value = value.copyWith(
               duration: Duration(milliseconds: map['duration']),
-              size: Size(map['width']?.toDouble() ?? 0.0, map['height']?.toDouble() ?? 0.0),
+              size: Size(map['width']?.toDouble() ?? 0.0,
+                  map['height']?.toDouble() ?? 0.0),
               errorDescription: null,
               forceSetErrorDescription: true);
           initializingCompleter.complete(null);
@@ -252,7 +264,8 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
           break;
         case 'bufferingUpdate':
           final List<dynamic> values = map['values'];
-          value = value.copyWith(buffered: values.map<DurationRange>(toDurationRange).toList());
+          value = value.copyWith(
+              buffered: values.map<DurationRange>(toDurationRange).toList());
           break;
         case 'bufferingStart':
           value = value.copyWith(
@@ -273,7 +286,13 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
             _cancelTimer();
           }
           value = value.copyWith(
-              isPlaying: isPlaying, errorDescription: null, forceSetErrorDescription: true);
+              isPlaying: isPlaying,
+              errorDescription: null,
+              forceSetErrorDescription: true);
+          break;
+        case 'resolutionChange':
+          final int index = map['index'];
+          value = value.copyWith(resolutionIndex: index);
           break;
       }
     }
@@ -435,11 +454,13 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     if (!value.initialized || _isDisposed) {
       return null;
     }
-    final Map<String, dynamic> response = await _channel.invokeMapMethod<String, dynamic>(
+    final Map<String, dynamic> response =
+        await _channel.invokeMapMethod<String, dynamic>(
       'getResolutions',
       <String, dynamic>{'textureId': _textureId},
     );
-    Map<int, String> resolutions = Map<int, String>.from(response['resolutions']);
+    Map<int, String> resolutions =
+        Map<int, String>.from(response['resolutions']);
     return resolutions;
   }
 
@@ -458,7 +479,11 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   Future<void> download(int trackIndex, String name) async {
     await _channel.invokeMethod<void>(
       'download',
-      <String, dynamic>{'textureId': _textureId, 'trackIndex': trackIndex, 'name': name},
+      <String, dynamic>{
+        'textureId': _textureId,
+        'trackIndex': trackIndex,
+        'name': name
+      },
     );
   }
 
