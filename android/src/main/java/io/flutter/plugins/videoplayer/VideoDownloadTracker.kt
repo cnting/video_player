@@ -63,6 +63,11 @@ class VideoDownloadTracker(downloadManager: DownloadManager) {
         return download != null && download.state != Download.STATE_FAILED
     }
 
+    fun getDownloadState(uri: Uri): Int {
+        val download = downloads[uri]
+        return download?.state ?: Download.STATE_QUEUED
+    }
+
     fun getDownloadRequest(uri: Uri): DownloadRequest? {
         val download = downloads[uri]
         return if (download != null && download.state != Download.STATE_FAILED) download.request else null
@@ -102,4 +107,11 @@ class VideoDownloadTracker(downloadManager: DownloadManager) {
     companion object {
         private val TAG = "DownloadTracker"
     }
+}
+
+object GpDownloadState {
+    const val UNDOWNLOAD = 0
+    const val DOWNLOADING = 1
+    const val COMPLETED = 2
+    const val ERROR = 3
 }

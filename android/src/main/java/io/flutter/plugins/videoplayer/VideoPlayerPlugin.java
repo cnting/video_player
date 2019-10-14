@@ -52,6 +52,8 @@ import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
 import java.util.Map;
+import java.util.Timer;
+import java.util.TimerTask;
 
 import io.flutter.plugin.common.EventChannel;
 import io.flutter.plugin.common.MethodCall;
@@ -143,6 +145,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                                     registrar.context(), eventChannel, handle, call.argument("uri"), result);
                     videoPlayers.put(handle.id(), player);
                 }
+                player.initDownloadState(videoDownloadManager);
                 break;
             }
             default: {
@@ -489,6 +492,14 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             }
         }
 
+        void setSpeed(double speed) {
+            if (!isInitialized) {
+                return;
+            }
+            PlaybackParameters playbackParameters = new PlaybackParameters((float) speed);
+            exoPlayer.setPlaybackParameters(playbackParameters);
+        }
+
         /**
          * 获取分辨率
          */
@@ -537,6 +548,29 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             trackSelector.setParameters(parametersBuilder);
         }
 
+        void initDownloadState(VideoDownloadManager videoDownloadManager) {
+            sendDownloadState(videoDownloadManager);
+        }
+
+        private void sendDownloadState(VideoDownloadManager videoDownloadManager) {
+            Download download = videoDownloadManager.getDownloadTracker().getDownload(dataSourceUri);
+
+            Map<String, Object> event = new HashMap<>();
+            event.put("event", "downloadState");
+
+            @Download.State int state = download != null ? download.state : Download.STATE_QUEUED;
+            if (state == Download.STATE_COMPLETED) {
+                event.put("state", GpDownloadState.COMPLETED);
+                // TODO: 获取缓存的是什么类型
+            } else if (state == Download.STATE_DOWNLOADING) {
+                event.put("state", GpDownloadState.DOWNLOADING);
+                event.put("progress", download.getPercentDownloaded());
+            } else {
+                event.put("state", GpDownloadState.UNDOWNLOAD);
+            }
+
+            eventSink.success(event);
+        }
 
         /**
          * 下载指定分辨率视频，暂时只支持hls
@@ -553,9 +587,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                     downloadHls(videoDownloadManager, trackIndex, downloadNotificationName);
                     break;
                 case C.TYPE_DASH:
-                    break;
                 case C.TYPE_OTHER:
-                    break;
                 case C.TYPE_SS:
                     break;
                 default: {
@@ -591,21 +623,33 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                 }
             });
 
+            final boolean[] isRunTask = {false};
             videoDownloadManager.getDownloadTracker().addListener(new VideoDownloadTracker.Listener() {
                 @Override
                 public void onDownloadsChanged() {
-                    Download download = videoDownloadManager.getDownloadTracker().getDownload(dataSourceUri);
-                    Log.d("下载", "===>" + download == null ? "null" : download.getPercentDownloaded() + "");
+                    if (!isRunTask[0]) {
+                        startRefreshProgressTask(videoDownloadManager, this);
+                        isRunTask[0] = true;
+                    }
                 }
             });
         }
 
-        void setSpeed(double speed) {
-            if (!isInitialized) {
-                return;
-            }
-            PlaybackParameters playbackParameters = new PlaybackParameters((float) speed);
-            exoPlayer.setPlaybackParameters(playbackParameters);
+        private void startRefreshProgressTask(VideoDownloadManager videoDownloadManager, VideoDownloadTracker.Listener listener) {
+            Timer timer = new Timer();
+            TimerTask timerTask = new TimerTask() {
+                @Override
+                public void run() {
+                    Download download = videoDownloadManager.getDownloadTracker().getDownload(dataSourceUri);
+                    Log.d("下载", "===>" + (download == null ? "null" : download.getPercentDownloaded() + ""));
+                    sendDownloadState(videoDownloadManager);
+                    if (download != null && download.isTerminalState()) {
+                        timer.cancel();
+                        videoDownloadManager.getDownloadTracker().removeListener(listener);
+                    }
+                }
+            };
+            timer.schedule(timerTask, 1000, 1000);
         }
     }
 }

@@ -18,7 +18,8 @@ class VideoDownloadService : DownloadService(
         1,
         DEFAULT_FOREGROUND_NOTIFICATION_UPDATE_INTERVAL,
         "download_channel",
-        R.string.download_channel_name
+        R.string.download_channel_name,
+        R.string.download_channel_name_description
 ) {
 
     private val CHANNEL_ID = "download_channel"

@@ -15,6 +15,22 @@ final MethodChannel _channel = const MethodChannel('flutter.io/videoPlayer')
 // performed.
   ..invokeMethod<void>('init');
 
+class DownloadState {
+  static const int UNDOWNLOAD = 0;
+  static const int DOWNLOADING = 1;
+  static const int COMPLETED = 2;
+  static const int ERROR = 3;
+
+  DownloadState(this.state, {this.progress});
+
+  final int state;
+  final double progress;
+}
+
+class DownloadNotifier extends ValueNotifier<DownloadState> {
+  DownloadNotifier(DownloadState value) : super(value);
+}
+
 class DurationRange {
   DurationRange(this.start, this.end);
 
@@ -36,19 +52,18 @@ class DurationRange {
 /// The duration, current position, buffering state, error state and settings
 /// of a [VideoPlayerController].
 class VideoPlayerValue {
-  VideoPlayerValue({
-    @required this.duration,
-    this.size,
-    this.position = const Duration(),
-    this.buffered = const <DurationRange>[],
-    this.isPlaying = false,
-    this.isLooping = false,
-    this.isBuffering = false,
-    this.volume = 1.0,
-    this.speed = 1.0,
-    this.resolutionIndex,
-    this.errorDescription,
-  });
+  VideoPlayerValue(
+      {@required this.duration,
+      this.size,
+      this.position = const Duration(),
+      this.buffered = const <DurationRange>[],
+      this.isPlaying = false,
+      this.isLooping = false,
+      this.isBuffering = false,
+      this.volume = 1.0,
+      this.speed = 1.0,
+      this.resolutionIndex,
+      this.errorDescription});
 
   VideoPlayerValue.uninitialized() : this(duration: null);
 
@@ -200,6 +215,8 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   Completer<void> _creatingCompleter;
   StreamSubscription<dynamic> _eventSubscription;
   _VideoAppLifeCycleObserver _lifeCycleObserver;
+  ValueNotifier<DownloadState> downloadNotifier =
+      ValueNotifier(DownloadState(DownloadState.UNDOWNLOAD));
 
   @visibleForTesting
   int get textureId => _textureId;
@@ -293,6 +310,12 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         case 'resolutionChange':
           final int index = map['index'];
           value = value.copyWith(resolutionIndex: index);
+          break;
+        case 'downloadState':
+          final int state = map['state'];
+          double progress = map['progress'];
+
+          downloadNotifier.value = DownloadState(state, progress: progress);
           break;
       }
     }
