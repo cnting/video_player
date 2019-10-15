@@ -1,6 +1,7 @@
 package io.flutter.plugins.videoplayer
 
 import android.app.Notification
+import android.util.Log
 import com.google.android.exoplayer2.offline.Download
 import com.google.android.exoplayer2.offline.DownloadManager
 import com.google.android.exoplayer2.offline.DownloadService

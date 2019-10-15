@@ -9,6 +9,7 @@ import android.net.Uri;
 import android.os.Build;
 import android.util.Log;
 import android.util.LongSparseArray;
+import android.util.SparseArray;
 import android.view.Surface;
 
 import com.google.android.exoplayer2.C;
@@ -21,6 +22,7 @@ import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.Player.EventListener;
 import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.audio.AudioAttributes;
 import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
 import com.google.android.exoplayer2.offline.Download;
@@ -33,6 +35,7 @@ import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.dash.DashMediaSource;
 import com.google.android.exoplayer2.source.dash.DefaultDashChunkSource;
+import com.google.android.exoplayer2.source.hls.HlsManifest;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
 import com.google.android.exoplayer2.source.smoothstreaming.DefaultSsChunkSource;
 import com.google.android.exoplayer2.source.smoothstreaming.SsMediaSource;
@@ -137,12 +140,12 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                                     eventChannel,
                                     handle,
                                     "asset:///" + assetLookupKey,
-                                    result);
+                                    result, videoDownloadManager);
                     videoPlayers.put(handle.id(), player);
                 } else {
                     player =
                             new VideoPlayer(
-                                    registrar.context(), eventChannel, handle, call.argument("uri"), result);
+                                    registrar.context(), eventChannel, handle, call.argument("uri"), result, videoDownloadManager);
                     videoPlayers.put(handle.id(), player);
                 }
                 player.initDownloadState(videoDownloadManager);
@@ -235,17 +238,19 @@ public class VideoPlayerPlugin implements MethodCallHandler {
         private DownloadHelper downloadHelper;
         private Context context;
         private final int videoRenererIndex = 0;
+        private VideoDownloadManager videoDownloadManager;
 
         VideoPlayer(
                 Context context,
                 EventChannel eventChannel,
                 TextureRegistry.SurfaceTextureEntry textureEntry,
                 String dataSource,
-                Result result) {
+                Result result, VideoDownloadManager videoDownloadManager) {
             this.eventChannel = eventChannel;
             this.textureEntry = textureEntry;
             this.dataSourceUri = Uri.parse(dataSource);
             this.context = context.getApplicationContext();
+            this.videoDownloadManager = videoDownloadManager;
 
             renderersFactory = new DefaultRenderersFactory(context);
             trackSelector = new DefaultTrackSelector();
@@ -279,6 +284,13 @@ public class VideoPlayerPlugin implements MethodCallHandler {
 
         private MediaSource buildMediaSource(
                 Uri uri, DataSource.Factory mediaDataSourceFactory, Context context) {
+
+            Download download = videoDownloadManager.getDownloadTracker().getDownload(uri);
+            if (download != null && download.state == Download.STATE_COMPLETED) {
+                DownloadRequest downloadRequest = download.request;
+                return DownloadHelper.createMediaSource(downloadRequest, videoDownloadManager.getLocalDataSourceFactory());
+            }
+
             int type = Util.inferContentType(uri.getLastPathSegment());
             switch (type) {
                 case C.TYPE_SS:
@@ -365,8 +377,18 @@ public class VideoPlayerPlugin implements MethodCallHandler {
 
                         @Override
                         public void onTracksChanged(TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
-                            if (trackSelections != null && trackSelections.length > 0) {
+                            if (trackSelections != null && trackSelections.length > 0 && trackSelections.get(0) != null) {
                                 sendResolutionChange(trackSelections.get(0).getSelectedIndexInTrackGroup());
+                            }
+                        }
+
+                        @Override
+                        public void onTimelineChanged(Timeline timeline, Object manifest, int reason) {
+                            // TODO: 看看服务端能不能加上NAME标签  https://github.com/google/ExoPlayer/issues/2914
+                            HlsManifest hlsManifest = (HlsManifest) manifest;
+                            List<String> tags = hlsManifest.masterPlaylist.tags;
+                            for (String tag : tags) {
+                                Log.d("===>", "tag:" + tag);
                             }
                         }
                     });
@@ -502,6 +524,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
 
         /**
          * 获取分辨率
+         * todo 如果可以添加NAME标签，则用上面onTimelineChanged()进行解析
          */
         Map<String, Object> getResolutions() {
             if (!isInitialized) {
@@ -511,13 +534,14 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             if (currentMappedTrackInfo == null) {
                 return null;
             }
-            Map<Integer, String> map = new HashMap<>();
+            //这里Map不能改成SparseArray，flutter那边解析不了
+            Map<Integer,String> map = new HashMap<>();
             TrackGroupArray trackGroups = currentMappedTrackInfo.getTrackGroups(videoRenererIndex);
             for (int groupIndex = 0; groupIndex < trackGroups.length; groupIndex++) {
                 TrackGroup trackGroup = trackGroups.get(groupIndex);
                 for (int trackIndex = 0; trackIndex < trackGroup.length; trackIndex++) {
                     Format format = trackGroup.getFormat(trackIndex);
-                    map.put(trackIndex, format.width + ":" + format.height);
+                    map.put(trackIndex, format.width + "x" + format.height);
                 }
             }
             Map<String, Object> event = new HashMap<>();
@@ -641,7 +665,6 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                 @Override
                 public void run() {
                     Download download = videoDownloadManager.getDownloadTracker().getDownload(dataSourceUri);
-                    Log.d("下载", "===>" + (download == null ? "null" : download.getPercentDownloaded() + ""));
                     sendDownloadState(videoDownloadManager);
                     if (download != null && download.isTerminalState()) {
                         timer.cancel();
