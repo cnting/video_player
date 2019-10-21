@@ -559,6 +559,10 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
       result(nil);
     } else if ([@"setSpeed" isEqualToString:call.method]) {
         [player setRote:[argsMap[@"speed"] floatValue]];
+    } else if ([@"switchResolutions" isEqualToString:call.method]) {
+        
+    } else if ([@"download" isEqualToString:call.method]) {
+        
     } else {
         result(FlutterMethodNotImplemented);
     }
