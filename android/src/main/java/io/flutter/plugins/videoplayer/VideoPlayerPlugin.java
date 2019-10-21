@@ -37,6 +37,7 @@ import com.google.android.exoplayer2.source.dash.DashMediaSource;
 import com.google.android.exoplayer2.source.dash.DefaultDashChunkSource;
 import com.google.android.exoplayer2.source.hls.HlsManifest;
 import com.google.android.exoplayer2.source.hls.HlsMediaSource;
+import com.google.android.exoplayer2.source.hls.playlist.HlsMasterPlaylist;
 import com.google.android.exoplayer2.source.smoothstreaming.DefaultSsChunkSource;
 import com.google.android.exoplayer2.source.smoothstreaming.SsMediaSource;
 import com.google.android.exoplayer2.trackselection.DefaultTrackSelector;
@@ -47,6 +48,9 @@ import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.util.Util;
+
+import org.json.JSONObject;
+import org.json.JSONStringer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -385,17 +389,30 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                         @Override
                         public void onTimelineChanged(Timeline timeline, Object manifest, int reason) {
                             // TODO: 看看服务端能不能加上NAME标签  https://github.com/google/ExoPlayer/issues/2914
-                            HlsManifest hlsManifest = (HlsManifest) manifest;
-                            List<String> tags = hlsManifest.masterPlaylist.tags;
-                            for (String tag : tags) {
-                                Log.d("===>", "tag:" + tag);
+                            if (manifest instanceof HlsManifest) {
+                                HlsManifest hlsManifest = (HlsManifest) manifest;
+                                Map<Integer,String> map = new HashMap<>();
+                                for (int i = 0; i < hlsManifest.masterPlaylist.variants.size(); i++) {
+                                    HlsMasterPlaylist.Variant variant = hlsManifest.masterPlaylist.variants.get(i);
+                                    String resolution = variant.format.width + "x" + variant.format.height;
+                                    map.put(i,resolution);
+                                }
+                                sendResolutions(map);
                             }
+
                         }
                     });
 
             Map<String, Object> reply = new HashMap<>();
             reply.put("textureId", textureEntry.id());
             result.success(reply);
+        }
+
+        private void sendResolutions(Map<Integer, String> map) {
+            Map<String, Object> event = new HashMap<>();
+            event.put("event", "resolutions");
+            event.put("map", map);
+            eventSink.success(event);
         }
 
         private void sendResolutionChange(int trackIndex) {
@@ -535,7 +552,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                 return null;
             }
             //这里Map不能改成SparseArray，flutter那边解析不了
-            Map<Integer,String> map = new HashMap<>();
+            Map<Integer, String> map = new HashMap<>();
             TrackGroupArray trackGroups = currentMappedTrackInfo.getTrackGroups(videoRenererIndex);
             for (int groupIndex = 0; groupIndex < trackGroups.length; groupIndex++) {
                 TrackGroup trackGroup = trackGroups.get(groupIndex);
