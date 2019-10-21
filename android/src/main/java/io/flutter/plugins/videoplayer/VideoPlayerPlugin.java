@@ -572,11 +572,12 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             @Download.State int state = download != null ? download.state : Download.STATE_QUEUED;
             if (state == Download.STATE_COMPLETED) {
                 event.put("state", GpDownloadState.COMPLETED);
-                // TODO: 获取缓存的是什么类型
             } else if (state == Download.STATE_DOWNLOADING) {
                 event.put("state", GpDownloadState.DOWNLOADING);
                 event.put("progress", download.getPercentDownloaded());
-            } else {
+            } else if(state==Download.STATE_FAILED){
+                event.put("state",GpDownloadState.ERROR);
+            }else {
                 event.put("state", GpDownloadState.UNDOWNLOAD);
             }
 
