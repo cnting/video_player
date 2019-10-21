@@ -63,6 +63,7 @@ class VideoPlayerValue {
       this.volume = 1.0,
       this.speed = 1.0,
       this.resolutionIndex,
+      this.resolutions,
       this.errorDescription});
 
   VideoPlayerValue.uninitialized() : this(duration: null);
@@ -99,6 +100,8 @@ class VideoPlayerValue {
   ///当前分辨率
   final int resolutionIndex;
 
+  final Map<int, String> resolutions;
+
   /// A description of the error if present.
   ///
   /// If [hasError] is false this is [null].
@@ -126,6 +129,7 @@ class VideoPlayerValue {
       double volume,
       double speed,
       int resolutionIndex,
+      Map<int, String> resolutions,
       String errorDescription,
       bool forceSetErrorDescription = false}) {
     return VideoPlayerValue(
@@ -139,6 +143,7 @@ class VideoPlayerValue {
       volume: volume ?? this.volume,
       speed: speed ?? this.speed,
       resolutionIndex: resolutionIndex ?? this.resolutionIndex,
+      resolutions: resolutions ?? this.resolutions,
       errorDescription: forceSetErrorDescription
           ? errorDescription
           : (errorDescription ?? this.errorDescription),
@@ -307,6 +312,10 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
               errorDescription: null,
               forceSetErrorDescription: true);
           break;
+        case 'resolutions':
+          final Map<int, String> resolutions = Map<int,String>.from(map['map']);
+          value = value.copyWith(resolutions: resolutions);
+          break;
         case 'resolutionChange':
           final int index = map['index'];
           value = value.copyWith(resolutionIndex: index);
@@ -470,21 +479,6 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   Future<void> setVolume(double volume) async {
     value = value.copyWith(volume: volume.clamp(0.0, 1.0));
     await _applyVolume();
-  }
-
-  ///获取分辨率
-  Future<Map<int, String>> getResolutions() async {
-    if (!value.initialized || _isDisposed) {
-      return null;
-    }
-    final Map<String, dynamic> response =
-        await _channel.invokeMapMethod<String, dynamic>(
-      'getResolutions',
-      <String, dynamic>{'textureId': _textureId},
-    );
-    Map<int, String> resolutions =
-        Map<int, String>.from(response['resolutions']);
-    return resolutions;
   }
 
   ///切换分辨率
