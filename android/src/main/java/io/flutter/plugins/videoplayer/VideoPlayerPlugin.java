@@ -203,9 +203,6 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                 videoPlayers.remove(textureId);
                 result.success(null);
                 break;
-            case "getResolutions":   //获取分辨率
-                result.success(player.getResolutions());
-                break;
             case "switchResolutions":  //切换分辨率
                 player.switchResolution(((Number) call.argument("trackIndex")).intValue());
                 result.success(null);
@@ -537,33 +534,6 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             }
             PlaybackParameters playbackParameters = new PlaybackParameters((float) speed);
             exoPlayer.setPlaybackParameters(playbackParameters);
-        }
-
-        /**
-         * 获取分辨率
-         * todo 如果可以添加NAME标签，则用上面onTimelineChanged()进行解析
-         */
-        Map<String, Object> getResolutions() {
-            if (!isInitialized) {
-                return null;
-            }
-            MappingTrackSelector.MappedTrackInfo currentMappedTrackInfo = trackSelector.getCurrentMappedTrackInfo();
-            if (currentMappedTrackInfo == null) {
-                return null;
-            }
-            //这里Map不能改成SparseArray，flutter那边解析不了
-            Map<Integer, String> map = new HashMap<>();
-            TrackGroupArray trackGroups = currentMappedTrackInfo.getTrackGroups(videoRenererIndex);
-            for (int groupIndex = 0; groupIndex < trackGroups.length; groupIndex++) {
-                TrackGroup trackGroup = trackGroups.get(groupIndex);
-                for (int trackIndex = 0; trackIndex < trackGroup.length; trackIndex++) {
-                    Format format = trackGroup.getFormat(trackIndex);
-                    map.put(trackIndex, format.width + "x" + format.height);
-                }
-            }
-            Map<String, Object> event = new HashMap<>();
-            event.put("resolutions", map);
-            return event;
         }
 
         /**
