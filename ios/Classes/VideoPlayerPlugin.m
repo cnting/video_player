@@ -5,6 +5,7 @@
 #import "VideoPlayerPlugin.h"
 #import <AVFoundation/AVFoundation.h>
 #import <GLKit/GLKit.h>
+#import "VideoPlayerPluginManager.h"
 
 static NSString* const METHOD_CHANGE_ORIENTATION = @"change_screen_orientation";
 static NSString* const ORIENTATION_PORTRAIT_UP = @"portraitUp";
@@ -34,12 +35,14 @@ int64_t FLTCMTimeToMillis(CMTime time) {
 - (void)onDisplayLink:(CADisplayLink*)link {
   [_registry textureFrameAvailable:_textureId];
 }
+
 @end
 
 @interface FLTVideoPlayer : NSObject <FlutterTexture, FlutterStreamHandler>
 @property(readonly, nonatomic) AVPlayer* player;
 @property(readonly, nonatomic) AVPlayerItemVideoOutput* videoOutput;
 @property(readonly, nonatomic) CADisplayLink* displayLink;
+@property (nonatomic, strong) VideoPlayerPluginManager * playerManager;
 @property(nonatomic) FlutterEventChannel* eventChannel;
 @property(nonatomic) FlutterEventSink eventSink;
 @property(nonatomic) CGAffineTransform preferredTransform;
@@ -165,7 +168,8 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 
 - (instancetype)initWithURL:(NSURL*)url frameUpdater:(FLTFrameUpdater*)frameUpdater {
   AVPlayerItem* item = [AVPlayerItem playerItemWithURL:url];
-  return [self initWithPlayerItem:item frameUpdater:frameUpdater];
+    
+  return [self initWithUrl:url.absoluteString PlayerItem:item frameUpdater:frameUpdater];
 }
 
 - (CGAffineTransform)fixTransform:(AVAssetTrack*)videoTrack {
@@ -191,7 +195,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   return transform;
 }
 
-- (instancetype)initWithPlayerItem:(AVPlayerItem*)item frameUpdater:(FLTFrameUpdater*)frameUpdater {
+- (instancetype)initWithUrl:(NSString *)urlStr PlayerItem:(AVPlayerItem*)item frameUpdater:(FLTFrameUpdater*)frameUpdater {
   self = [super init];
   NSAssert(self, @"super init cannot be nil");
   _isInitialized = false;
@@ -226,8 +230,8 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
       }
     }
   };
-
   _player = [AVPlayer playerWithPlayerItem:item];
+  _playerManager = [[VideoPlayerPluginManager alloc] initWithOriginPlayerUrl:urlStr];
   _player.actionAtItemEnd = AVPlayerActionAtItemEndNone;
 
   [self createVideoOutputAndDisplayLink:frameUpdater];
@@ -263,17 +267,11 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
                     message:[@"Failed to load video: "
                                 stringByAppendingString:[item.error localizedDescription]]
                     details:nil]);
-            _eventSink(@{@"event" : @"playStateChanged",
-                         @"isPlaying":[NSNumber numberWithBool:false]
-                         });
+          [self sendPlayStateChanged:false];
         }
         break;
       case AVPlayerItemStatusUnknown:
-            if (_eventSink != nil) {
-                _eventSink(@{@"event" : @"playStateChanged",
-                             @"isPlaying":[NSNumber numberWithBool:false]
-                             });
-            }
+          [self sendPlayStateChanged:false];
         break;
       case AVPlayerItemStatusReadyToPlay:
         [item addOutput:_videoOutput];
@@ -304,21 +302,53 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     return;
   }
   if (_isPlaying) {
-      if (_eventSink != nil) {
-          _eventSink(@{@"event" : @"playStateChanged",
-                       @"isPlaying":[NSNumber numberWithBool:true]
-                       });
-      }
+    [self sendPlayStateChanged:true];
     [_player play];
   } else {
-      if (_eventSink != nil) {
-          _eventSink(@{@"event" : @"playStateChanged",
-                       @"isPlaying":[NSNumber numberWithBool:false]
-                       });
-      }
+    [self sendPlayStateChanged:false];
     [_player pause];
   }
   _displayLink.paused = !_isPlaying;
+}
+
+- (void)sendPlayStateChanged:(BOOL)isPlaying {
+    if (_eventSink != nil) {
+        _eventSink(@{@"event" : @"playStateChanged",
+                     @"isPlaying":[NSNumber numberWithBool:isPlaying]
+                     });
+    }
+    if (isPlaying) {
+        NSLog(@">>>>>>>>>>>>>>>>%f     >>>>>>>>>>>%f",self.player.currentItem.presentationSize.width,self.player.currentItem.presentationSize.width);
+        [self sendResolutions:[_playerManager getVideoResulotions]];
+        [self sendResolutionChange:[_playerManager getVideoPlayerResulotionTrackIndex:self.player.currentItem.presentationSize.width]];
+    }
+}
+
+- (void)sendResolutions:(NSDictionary *)dic {
+    if (_eventSink != nil) {
+        _eventSink(@{@"event":@"resolutions",
+                     @"map":dic});
+    }
+}
+
+- (void)sendResolutionChange:(NSInteger)trackIndex {
+    if (_eventSink != nil) {
+        _eventSink(@{@"event":@"resolutionChange",
+                     @"index":[NSNumber numberWithInteger:trackIndex]});
+    }
+}
+
+- (void)switchResolution:(int)trackIndex {
+    if (@available(iOS 11.0, *)) {
+        NSArray * array = [_playerManager getSwithResolution:trackIndex];
+        if (array.count != 0) {
+            CGSize size = CGSizeMake([array[0] floatValue], [array[1] floatValue]);
+            [self.player.currentItem setPreferredMaximumResolution:size];
+            [self sendResolutionChange:trackIndex];
+        }
+    } else {
+        // Fallback on earlier versions
+    }
 }
 
 - (void)sendInitialized {
@@ -560,7 +590,9 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     } else if ([@"setSpeed" isEqualToString:call.method]) {
         [player setRote:[argsMap[@"speed"] floatValue]];
     } else if ([@"switchResolutions" isEqualToString:call.method]) {
-        
+        NSNumber * trackIndex = (NSNumber *)call.arguments[@"trackIndex"];
+        [player switchResolution:[trackIndex intValue]];
+        result(nil);
     } else if ([@"download" isEqualToString:call.method]) {
         
     } else {
