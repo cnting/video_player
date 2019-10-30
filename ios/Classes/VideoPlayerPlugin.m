@@ -6,6 +6,8 @@
 #import <AVFoundation/AVFoundation.h>
 #import <GLKit/GLKit.h>
 #import "VideoPlayerPluginManager.h"
+#import "ZBLM3u8FileManager.h"
+#import "ZBLM3u8Manager.h"
 
 static NSString* const METHOD_CHANGE_ORIENTATION = @"change_screen_orientation";
 static NSString* const ORIENTATION_PORTRAIT_UP = @"portraitUp";
@@ -38,7 +40,7 @@ int64_t FLTCMTimeToMillis(CMTime time) {
 
 @end
 
-@interface FLTVideoPlayer : NSObject <FlutterTexture, FlutterStreamHandler>
+@interface FLTVideoPlayer : NSObject <FlutterTexture, FlutterStreamHandler,ZBLM3u8ManagerDownloadDelegate>
 @property(readonly, nonatomic) AVPlayer* player;
 @property(readonly, nonatomic) AVPlayerItemVideoOutput* videoOutput;
 @property(readonly, nonatomic) CADisplayLink* displayLink;
@@ -167,7 +169,22 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 }
 
 - (instancetype)initWithURL:(NSURL*)url frameUpdater:(FLTFrameUpdater*)frameUpdater {
-  AVPlayerItem* item = [AVPlayerItem playerItemWithURL:url];
+//  AVPlayerItem* item = [AVPlayerItem playerItemWithURL:url];
+    NSString * urlStr = url.absoluteString;//@"http://vedio-pro.iwordnet.com/bf42c73349f74ad8b3a6b760739ef32c/451287bd3e8645868e6de273d05676cc.m3u8";
+    _playerManager = [[VideoPlayerPluginManager alloc] initWithOriginPlayerUrl:urlStr];
+    NSString * cacheUrlStr = [ZBLM3u8FileManager exitCacheTemporaryWithUrl:_playerManager.resolutionDownloadUrlArray];
+    if (![cacheUrlStr isEqualToString:@""]) {
+        ///已缓存对应文件
+        urlStr = [[ZBLM3u8Manager shareInstance] localPlayUrlWithOriUrlString:cacheUrlStr];
+        //开启本地服务器
+        [[ZBLM3u8Manager shareInstance] tryStartLocalService];
+        [self sendDownloadState:COMPLETED progress:0];
+//        NSLog(@">>>>>>>>>>>本地视频已经缓存");
+    } else {
+        [[ZBLM3u8Manager shareInstance] tryStopLocalService];
+        [self sendDownloadState:UNDOWNLOAD progress:0];
+    }
+    AVPlayerItem* item = [AVPlayerItem playerItemWithURL:[NSURL URLWithString:urlStr]];
     
   return [self initWithUrl:url.absoluteString PlayerItem:item frameUpdater:frameUpdater];
 }
@@ -231,7 +248,6 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     }
   };
   _player = [AVPlayer playerWithPlayerItem:item];
-  _playerManager = [[VideoPlayerPluginManager alloc] initWithOriginPlayerUrl:urlStr];
   _player.actionAtItemEnd = AVPlayerActionAtItemEndNone;
 
   [self createVideoOutputAndDisplayLink:frameUpdater];
@@ -247,6 +263,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
                       ofObject:(id)object
                         change:(NSDictionary*)change
                        context:(void*)context {
+    
   if (context == timeRangeContext) {
     if (_eventSink != nil) {
       NSMutableArray<NSArray<NSNumber*>*>* values = [[NSMutableArray alloc] init];
@@ -257,6 +274,18 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
       }
       _eventSink(@{@"event" : @"bufferingUpdate", @"values" : values});
     }
+      if (@available(iOS 11.0, *)) {
+          CGFloat videoWidth = 0.0;
+          if (self.player.currentItem.preferredMaximumResolution.width == 0) {
+              videoWidth = self.player.currentItem.presentationSize.width;
+          } else {
+              videoWidth = self.player.currentItem.preferredMaximumResolution.width;
+          }
+          [self sendResolutionChange:[_playerManager getVideoPlayerResulotionTrackIndex:videoWidth]];
+//          NSLog(@"11111>>>>>>>>>>>>>>>>%f     >>>>>>>>>>>%f",self.player.currentItem.presentationSize.width,self.player.currentItem.preferredMaximumResolution.width);
+      } else {
+          // Fallback on earlier versions
+      }
   } else if (context == statusContext) {
     AVPlayerItem* item = (AVPlayerItem*)object;
     switch (item.status) {
@@ -318,9 +347,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
                      });
     }
     if (isPlaying) {
-        NSLog(@">>>>>>>>>>>>>>>>%f     >>>>>>>>>>>%f",self.player.currentItem.presentationSize.width,self.player.currentItem.presentationSize.width);
         [self sendResolutions:[_playerManager getVideoResulotions]];
-        [self sendResolutionChange:[_playerManager getVideoPlayerResulotionTrackIndex:self.player.currentItem.presentationSize.width]];
     }
 }
 
@@ -344,19 +371,73 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
         if (array.count != 0) {
             CGSize size = CGSizeMake([array[0] floatValue], [array[1] floatValue]);
             [self.player.currentItem setPreferredMaximumResolution:size];
-            [self sendResolutionChange:trackIndex];
         }
     } else {
-        // Fallback on earlier versions
+        NSArray * array = [_playerManager getSwithResolution:trackIndex];
+        if (array.count != 0) {
+            CGSize size = CGSizeMake([array[0] floatValue], [array[1] floatValue]);
+            [self sendResolutionChange:[_playerManager getVideoPlayerResulotionTrackIndex:size.width]];
+        }
+    }
+}
+
+- (void)sendDownloadState:(GpDownloadState)videoDownloadState progress:(float)downloadPregress {
+    if (_eventSink != nil) {
+        NSMutableDictionary * dic = [[NSMutableDictionary alloc] init];
+        [dic setObject:@"downloadState" forKey:@"event"];
+        [dic setObject:[NSNumber numberWithInteger:videoDownloadState] forKey:@"state"];
+        if (videoDownloadState == DOWNLOADING) {
+            [dic setObject:[NSNumber numberWithFloat:downloadPregress] forKey:@"progress"];
+        }
+        _eventSink(dic);
+    }
+}
+
+- (void)download:(int)trackIndex name:(NSString *)name {
+    NSString * downloadUrl = [_playerManager getDownloadUrl:trackIndex];
+    if (![downloadUrl isEqualToString:@""]) {
+        ///开始下载
+        [ZBLM3u8Manager shareInstance].delegate = self;
+        [[ZBLM3u8Manager shareInstance] startDownloadUrl:downloadUrl];
+    }
+}
+
+#pragma mark - downloadVideo delegate
+- (void)m3u8DownloadSuccess:(NSString *)normalDownloadUrl {
+    if ([_playerManager containsDownloadUrl:normalDownloadUrl]) {
+        [self sendDownloadState:COMPLETED progress:0];
+        [_playerManager downloadSuccessAndDeleteDifferentResolutionCaches:_playerManager.resolutionDownloadUrlArray];
+    }
+}
+
+- (void)m3u8DownloadFailed:(NSString *)normalDownloadUrl error:(NSError *)error {
+    if ([_playerManager containsDownloadUrl:normalDownloadUrl]) {
+        [self sendDownloadState:ERROR progress:0];
+    }
+}
+
+- (void)m3u8Downloading:(NSString *)normalDownloadUrl progress:(float)progress {
+    if ([_playerManager containsDownloadUrl:normalDownloadUrl]) {
+        [self sendDownloadState:DOWNLOADING progress:progress * 100.0];
     }
 }
 
 - (void)sendInitialized {
   if (_eventSink && !_isInitialized) {
+      NSString * cacheUrlStr = [ZBLM3u8FileManager exitCacheTemporaryWithUrl:_playerManager.resolutionDownloadUrlArray];
+      if (![cacheUrlStr isEqualToString:@""]) {
+          ///已缓存对应文件
+          [self sendDownloadState:COMPLETED progress:0];
+      } else if ([[ZBLM3u8Manager shareInstance] downloadingUrl:_playerManager.resolutionDownloadUrlArray]) {
+          ///内存中存在这个视频，但是没有下载成功
+//          NSLog(@">>>>>>>>>>当前视频正在下载中");
+          [ZBLM3u8Manager shareInstance].delegate = self;
+      } else {
+          [self sendDownloadState:UNDOWNLOAD progress:0];
+      }
     CGSize size = [self.player currentItem].presentationSize;
     CGFloat width = size.width;
     CGFloat height = size.height;
-
     // The player has not yet initialized.
     if (height == CGSizeZero.height && width == CGSizeZero.width) {
       return;
@@ -594,7 +675,10 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
         [player switchResolution:[trackIndex intValue]];
         result(nil);
     } else if ([@"download" isEqualToString:call.method]) {
-        
+        NSNumber * trackIndex = (NSNumber *)call.arguments[@"trackIndex"];
+        NSString * name = call.arguments[@"name"];
+        [player download:[trackIndex intValue] name:name];
+        result(nil);
     } else {
         result(FlutterMethodNotImplemented);
     }

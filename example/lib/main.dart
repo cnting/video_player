@@ -32,7 +32,8 @@ class _VideoPlayPauseState extends State<VideoPlayPause> {
     };
   }
 
-  FadeAnimation imageFadeAnim = FadeAnimation(child: const Icon(Icons.play_arrow, size: 100.0));
+  FadeAnimation imageFadeAnim =
+      FadeAnimation(child: const Icon(Icons.play_arrow, size: 100.0));
   VoidCallback listener;
 
   VideoPlayerController get controller => widget.controller;
@@ -62,10 +63,12 @@ class _VideoPlayPauseState extends State<VideoPlayPause> {
             return;
           }
           if (controller.value.isPlaying) {
-            imageFadeAnim = FadeAnimation(child: const Icon(Icons.pause, size: 100.0));
+            imageFadeAnim =
+                FadeAnimation(child: const Icon(Icons.pause, size: 100.0));
             controller.pause();
           } else {
-            imageFadeAnim = FadeAnimation(child: const Icon(Icons.play_arrow, size: 100.0));
+            imageFadeAnim =
+                FadeAnimation(child: const Icon(Icons.play_arrow, size: 100.0));
             controller.play();
           }
         },
@@ -78,7 +81,10 @@ class _VideoPlayPauseState extends State<VideoPlayPause> {
         ),
       ),
       Center(child: imageFadeAnim),
-      Center(child: controller.value.isBuffering ? const CircularProgressIndicator() : null),
+      Center(
+          child: controller.value.isBuffering
+              ? const CircularProgressIndicator()
+              : null),
     ];
 
     return Stack(
@@ -89,7 +95,8 @@ class _VideoPlayPauseState extends State<VideoPlayPause> {
 }
 
 class FadeAnimation extends StatefulWidget {
-  FadeAnimation({this.child, this.duration = const Duration(milliseconds: 500)});
+  FadeAnimation(
+      {this.child, this.duration = const Duration(milliseconds: 500)});
 
   final Widget child;
   final Duration duration;
@@ -98,13 +105,15 @@ class FadeAnimation extends StatefulWidget {
   _FadeAnimationState createState() => _FadeAnimationState();
 }
 
-class _FadeAnimationState extends State<FadeAnimation> with SingleTickerProviderStateMixin {
+class _FadeAnimationState extends State<FadeAnimation>
+    with SingleTickerProviderStateMixin {
   AnimationController animationController;
 
   @override
   void initState() {
     super.initState();
-    animationController = AnimationController(duration: widget.duration, vsync: this);
+    animationController =
+        AnimationController(duration: widget.duration, vsync: this);
     animationController.addListener(() {
       if (mounted) {
         setState(() {});
@@ -144,7 +153,8 @@ class _FadeAnimationState extends State<FadeAnimation> with SingleTickerProvider
   }
 }
 
-typedef Widget VideoWidgetBuilder(BuildContext context, VideoPlayerController controller);
+typedef Widget VideoWidgetBuilder(
+    BuildContext context, VideoPlayerController controller);
 
 abstract class PlayerLifeCycle extends StatefulWidget {
   PlayerLifeCycle(this.dataSource, this.childBuilder);
@@ -284,7 +294,8 @@ class VideoInListOfCards extends StatelessWidget {
                 title: Text("Video video"),
               ),
               Stack(
-                  alignment: FractionalOffset.bottomRight + const FractionalOffset(-0.1, -0.1),
+                  alignment: FractionalOffset.bottomRight +
+                      const FractionalOffset(-0.1, -0.1),
                   children: <Widget>[
                     AspectRatioVideo(controller),
                     Image.asset('assets/flutter-mark-square-64.png'),
@@ -380,7 +391,9 @@ void main() {
                       padding: const EdgeInsets.all(20),
                       child: NetworkPlayerLifeCycle(
                           'http://res.uquabc.com/HLS_Apple/all.m3u8',
-                          (BuildContext context, VideoPlayerController controller) => Column(
+                          (BuildContext context,
+                                  VideoPlayerController controller) =>
+                              Column(
                                 children: <Widget>[
                                   AspectRatioVideo(controller),
                                   ResolutionsWidget(controller)
@@ -401,7 +414,8 @@ void main() {
                       padding: const EdgeInsets.all(20),
                       child: AssetPlayerLifeCycle(
                           'assets/Butterfly-209.mp4',
-                          (BuildContext context, VideoPlayerController controller) =>
+                          (BuildContext context,
+                                  VideoPlayerController controller) =>
                               AspectRatioVideo(controller)),
                     ),
                   ],
@@ -437,11 +451,11 @@ class _ResolutionsWidgetState extends State<ResolutionsWidget> {
     var getResolutionsBtn = RaisedButton(
       child: Text("获取分辨率"),
       onPressed: () {
-        widget.controller.getResolutions().then((value) {
-          setState(() {
-            resolutions = value;
-          });
-        });
+//        widget.controller.getResolutions().then((value) {
+//          setState(() {
+//            resolutions = value;
+//          });
+//        });
       },
     );
     List<Widget> widgets = [getResolutionsBtn];

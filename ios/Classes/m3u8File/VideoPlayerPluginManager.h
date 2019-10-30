@@ -48,5 +48,11 @@
 
 - (NSArray<NSString *> *)getSwithResolution:(int)trackIndex;
 
+- (NSString *)getDownloadUrl:(int)trackIndex;
+
+- (BOOL)containsDownloadUrl:(NSString *)url;
+
+- (void)downloadSuccessAndDeleteDifferentResolutionCaches:(NSArray *)urls;
+
 @end
 

@@ -6,6 +6,7 @@
 //
 
 #import "VideoPlayerPluginManager.h"
+#import "ZBLM3u8Setting.h"
 
 static NSString * const spltSlash = @"/";
 
@@ -52,13 +53,19 @@ static NSString * const spltSlash = @"/";
 
 - (NSInteger)getVideoPlayerResulotionTrackIndex:(CGFloat)width {
     NSInteger trackIndex = 0;
+    NSString * resolutionWidth = [NSString stringWithFormat:@"%.0f",width];
     if (self.resolutionArray != nil && self.resolutionArray.count != 0) {
         for (int i = 0; i < self.resolutionArray.count; ++i) {
             NSString * resolutionString = self.resolutionArray[i];
             if (resolutionString != nil) {
-                if ([resolutionString containsString: [NSString stringWithFormat:@"%f",width]]) {
-                    trackIndex = i;
-                    break;
+                if ([resolutionString containsString:@"x"]) {
+                    NSArray<NSString *> * spltArray = [resolutionString componentsSeparatedByString:@"x"];
+                    for (NSString * resolutionSpltStr in spltArray) {
+                        if ([resolutionSpltStr isEqualToString:resolutionWidth]) {
+                            trackIndex = i;
+                            return trackIndex;
+                        }
+                    }
                 }
             }
         }
@@ -70,6 +77,33 @@ static NSString * const spltSlash = @"/";
     NSString * spltStr = [originUrl componentsSeparatedByString:@"/"].lastObject;
     NSString * origin = [originUrl stringByReplacingOccurrencesOfString:spltStr withString:@""];
     return origin;
+}
+
+- (BOOL)containsDownloadUrl:(NSString *)url {
+    BOOL flag = false;
+    if (url == nil || [url isEqualToString:@""]) {
+        return flag;
+    }
+    if (self.resolutionDownloadUrlArray != nil && ![self.resolutionDownloadUrlArray isKindOfClass:[NSNull class]] && self.resolutionDownloadUrlArray.count != 0) {
+        for (NSString * downloadUrl in self.resolutionDownloadUrlArray) {
+            if ([downloadUrl isEqualToString:url]) {
+                flag = true;
+                break;
+            }
+        }
+    }
+    return flag;
+}
+
+- (void)downloadSuccessAndDeleteDifferentResolutionCaches:(NSArray *)urls {
+    if (urls.count != 0) {
+        for (NSString * url in urls) {
+            NSString * path = [ZBLM3u8Setting fullCommonDirPrefixWithUrl:url];
+            if ([[NSFileManager defaultManager] fileExistsAtPath:path]) {
+                [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+            }
+        }
+    }
 }
 
 - (NSArray<NSString *> *)getSwithResolution:(int)trackIndex {
@@ -88,6 +122,16 @@ static NSString * const spltSlash = @"/";
         }
     }
     return array;
+}
+
+- (NSString *)getDownloadUrl:(int)trackIndex {
+    NSString * url = @"";
+    if (self.resolutionDownloadUrlArray != nil && ![self.resolutionDownloadUrlArray isKindOfClass:[NSNull class]] && self.resolutionDownloadUrlArray.count != 0) {
+        if (trackIndex <= self.resolutionDownloadUrlArray.count - 1) {
+            url = self.resolutionDownloadUrlArray[trackIndex];
+        }
+    }
+    return url;
 }
 
 + (NSDictionary *)getM3U8AllFile:(NSString *)urlStr {
