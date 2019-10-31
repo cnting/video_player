@@ -7,9 +7,7 @@ package io.flutter.plugins.videoplayer;
 import android.content.Context;
 import android.net.Uri;
 import android.os.Build;
-import android.util.Log;
 import android.util.LongSparseArray;
-import android.util.SparseArray;
 import android.view.Surface;
 
 import com.google.android.exoplayer2.C;
@@ -31,7 +29,6 @@ import com.google.android.exoplayer2.offline.DownloadRequest;
 import com.google.android.exoplayer2.offline.DownloadService;
 import com.google.android.exoplayer2.source.ExtractorMediaSource;
 import com.google.android.exoplayer2.source.MediaSource;
-import com.google.android.exoplayer2.source.TrackGroup;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.dash.DashMediaSource;
 import com.google.android.exoplayer2.source.dash.DefaultDashChunkSource;
@@ -48,9 +45,6 @@ import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.util.Util;
-
-import org.json.JSONObject;
-import org.json.JSONStringer;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -210,7 +204,11 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             case "download": //缓存视频
                 int trackIndex = ((Number) call.argument("trackIndex")).intValue();
                 String name = call.argument("name");
-                player.download(videoDownloadManager, trackIndex, name);
+                player.download(trackIndex, name);
+                result.success(null);
+                break;
+            case "removeDownload": //删除视频
+                player.removeDownload();
                 result.success(null);
                 break;
             case "setSpeed":
@@ -240,6 +238,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
         private Context context;
         private final int videoRenererIndex = 0;
         private VideoDownloadManager videoDownloadManager;
+        private Timer refreshProgressTimer;
 
         VideoPlayer(
                 Context context,
@@ -388,11 +387,11 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                             // TODO: 看看服务端能不能加上NAME标签  https://github.com/google/ExoPlayer/issues/2914
                             if (manifest instanceof HlsManifest) {
                                 HlsManifest hlsManifest = (HlsManifest) manifest;
-                                Map<Integer,String> map = new HashMap<>();
+                                Map<Integer, String> map = new HashMap<>();
                                 for (int i = 0; i < hlsManifest.masterPlaylist.variants.size(); i++) {
                                     HlsMasterPlaylist.Variant variant = hlsManifest.masterPlaylist.variants.get(i);
                                     String resolution = variant.format.width + "x" + variant.format.height;
-                                    map.put(i,resolution);
+                                    map.put(i, resolution);
                                 }
                                 sendResolutions(map);
                             }
@@ -526,6 +525,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             if (downloadHelper != null) {
                 downloadHelper.release();
             }
+            cancelRefreshProgressTimer();
         }
 
         void setSpeed(double speed) {
@@ -560,10 +560,15 @@ public class VideoPlayerPlugin implements MethodCallHandler {
         }
 
         void initDownloadState(VideoDownloadManager videoDownloadManager) {
-            sendDownloadState(videoDownloadManager);
+            @Download.State Download download = sendDownloadState(videoDownloadManager);
+            if (download != null) {
+                //如果在STATE_DOWNLOADING状态，直到下载完成onDownloadsChanged才会回调，所以不能用startRefreshProgressTask()方法
+                startRefreshProgressTimer(null);
+            }
         }
 
-        private void sendDownloadState(VideoDownloadManager videoDownloadManager) {
+        private @Download.State
+        Download sendDownloadState(VideoDownloadManager videoDownloadManager) {
             Download download = videoDownloadManager.getDownloadTracker().getDownload(dataSourceUri);
 
             Map<String, Object> event = new HashMap<>();
@@ -575,13 +580,15 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             } else if (state == Download.STATE_DOWNLOADING) {
                 event.put("state", GpDownloadState.DOWNLOADING);
                 event.put("progress", download.getPercentDownloaded());
-            } else if(state==Download.STATE_FAILED){
-                event.put("state",GpDownloadState.ERROR);
-            }else {
+            } else if (state == Download.STATE_FAILED) {
+                event.put("state", GpDownloadState.ERROR);
+            } else {
                 event.put("state", GpDownloadState.UNDOWNLOAD);
             }
 
             eventSink.success(event);
+
+            return download;
         }
 
         /**
@@ -589,14 +596,14 @@ public class VideoPlayerPlugin implements MethodCallHandler {
          *
          * @param trackIndex
          */
-        void download(VideoDownloadManager videoDownloadManager, int trackIndex, String downloadNotificationName) {
+        void download(int trackIndex, String downloadNotificationName) {
             if (isFileOrAsset(dataSourceUri)) {
                 return;
             }
             int type = Util.inferContentType(dataSourceUri.getLastPathSegment());
             switch (type) {
                 case C.TYPE_HLS:
-                    downloadHls(videoDownloadManager, trackIndex, downloadNotificationName);
+                    downloadHls(trackIndex, downloadNotificationName);
                     break;
                 case C.TYPE_DASH:
                 case C.TYPE_OTHER:
@@ -607,7 +614,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             }
         }
 
-        private void downloadHls(VideoDownloadManager videoDownloadManager, int trackIndex, String downloadNotificationName) {
+        private void downloadHls(int trackIndex, String downloadNotificationName) {
             if (downloadHelper != null) {
                 downloadHelper.release();
             }
@@ -635,32 +642,66 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                 }
             });
 
+            startRefreshProgressTask();
+        }
+
+        private void startRefreshProgressTask() {
             final boolean[] isRunTask = {false};
             videoDownloadManager.getDownloadTracker().addListener(new VideoDownloadTracker.Listener() {
                 @Override
                 public void onDownloadsChanged() {
                     if (!isRunTask[0]) {
-                        startRefreshProgressTask(videoDownloadManager, this);
+                        startRefreshProgressTimer(this);
                         isRunTask[0] = true;
                     }
                 }
             });
         }
 
-        private void startRefreshProgressTask(VideoDownloadManager videoDownloadManager, VideoDownloadTracker.Listener listener) {
-            Timer timer = new Timer();
+        private void startRefreshProgressTimer(VideoDownloadTracker.Listener listener) {
+            if (refreshProgressTimer != null) {
+                refreshProgressTimer.cancel();
+            }
+            refreshProgressTimer = new Timer();
             TimerTask timerTask = new TimerTask() {
                 @Override
                 public void run() {
                     Download download = videoDownloadManager.getDownloadTracker().getDownload(dataSourceUri);
                     sendDownloadState(videoDownloadManager);
+
                     if (download != null && download.isTerminalState()) {
-                        timer.cancel();
-                        videoDownloadManager.getDownloadTracker().removeListener(listener);
+                        cancelRefreshProgressTimer();
+                        if (listener != null) {
+                            videoDownloadManager.getDownloadTracker().removeListener(listener);
+                        }
                     }
                 }
             };
-            timer.schedule(timerTask, 1000, 1000);
+            refreshProgressTimer.schedule(timerTask, 1000, 1000);
+        }
+
+        private void cancelRefreshProgressTimer() {
+            if (refreshProgressTimer != null) {
+                refreshProgressTimer.cancel();
+                refreshProgressTimer = null;
+            }
+        }
+
+        void removeDownload() {
+            Download download = videoDownloadManager.getDownloadTracker().getDownload(dataSourceUri);
+            if (download != null) {
+                DownloadService.sendRemoveDownload(context, VideoDownloadService.class, download.request.id, false);
+                videoDownloadManager.getDownloadTracker().addListener(new VideoDownloadTracker.Listener() {
+                    @Override
+                    public void onDownloadsChanged() {
+                        if (videoDownloadManager.getDownloadTracker().getDownloadState(dataSourceUri) == Download.STATE_QUEUED) {
+                            sendDownloadState(videoDownloadManager);
+                            videoDownloadManager.getDownloadTracker().removeListener(this);
+                        }
+                    }
+                });
+//                startRefreshProgressTask();
+            }
         }
     }
 }

@@ -313,7 +313,8 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
               forceSetErrorDescription: true);
           break;
         case 'resolutions':
-          final Map<int, String> resolutions = Map<int,String>.from(map['map']);
+          final Map<int, String> resolutions =
+              Map<int, String>.from(map['map']);
           value = value.copyWith(resolutions: resolutions);
           break;
         case 'resolutionChange':
@@ -323,7 +324,6 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         case 'downloadState':
           final int state = map['state'];
           double progress = map['progress'];
-
           downloadNotifier.value = DownloadState(state, progress: progress);
           break;
       }
@@ -366,6 +366,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       _lifeCycleObserver.dispose();
     }
     _isDisposed = true;
+    downloadNotifier?.dispose();
     super.dispose();
   }
 
@@ -500,6 +501,16 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         'textureId': _textureId,
         'trackIndex': trackIndex,
         'name': name
+      },
+    );
+  }
+
+  ///删除下载
+  Future<void> removeDownload() async {
+    await _channel.invokeMethod<void>(
+      'removeDownload',
+      <String, dynamic>{
+        'textureId': _textureId,
       },
     );
   }
