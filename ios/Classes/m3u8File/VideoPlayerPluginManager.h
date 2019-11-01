@@ -14,6 +14,7 @@
 @property (readonly, nonatomic, strong) NSString * spliceOriginUrl; //主拼接链接
 @property (readonly, nonatomic, strong) NSArray * resolutionArray; // 分辨率数组
 @property (readonly, nonatomic, strong) NSArray * resolutionDownloadUrlArray; //对应分辨率下载数组
+@property (readonly, nonatomic, assign) BOOL isPlayingCacheVideoUrl;
 
 - (instancetype)initWithOriginPlayerUrl:(NSString *)url;
 

@@ -405,14 +405,17 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 - (void)removeAllVideoCache {
     ///删除本地缓存
     [_playerManager removeVideoAllCache];
-    ///关闭本地服务器
-    [[ZBLM3u8Manager shareInstance] tryStopLocalService];
-    ///通知UI当前视频未缓存
-    [self sendDownloadState:UNDOWNLOAD progress:0];
-    ///切换视频源
-    AVPlayerItem* item = [AVPlayerItem playerItemWithURL:[NSURL URLWithString:_playerManager.playerUrl]];
-    [_player replaceCurrentItemWithPlayerItem:item];
-    [_player play];
+    if (_playerManager.isPlayingCacheVideoUrl) {
+        ///当前正在播放本地视频
+        ///关闭本地服务器
+        [[ZBLM3u8Manager shareInstance] tryStopLocalService];
+        ///通知UI当前视频未缓存
+        [self sendDownloadState:UNDOWNLOAD progress:0];
+        ///切换视频源
+        AVPlayerItem* item = [AVPlayerItem playerItemWithURL:[NSURL URLWithString:_playerManager.playerUrl]];
+        [_player replaceCurrentItemWithPlayerItem:item];
+        [self addObservers:item];
+    }
 }
 
 #pragma mark - downloadVideo delegate
