@@ -106,6 +106,24 @@ static NSString * const spltSlash = @"/";
     }
 }
 
+- (void)removeVideoAllCache {
+    if (self.resolutionDownloadUrlArray.count != 0) {
+        for (NSString * url in self.resolutionDownloadUrlArray) {
+            NSString * path = [ZBLM3u8Setting fullCommonDirPrefixWithUrl:url];
+            if ([[NSFileManager defaultManager] fileExistsAtPath:path]) {
+                [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+            }
+        }
+        
+        for (NSString * url in self.resolutionDownloadUrlArray) {
+            NSString * path = [[ZBLM3u8Setting downloadTemporaryPath] stringByAppendingString:[ZBLM3u8Setting uuidWithUrl:url]];
+            if ([[NSFileManager defaultManager] fileExistsAtPath:path]) {
+                [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+            }
+        }
+    }
+}
+
 - (NSArray<NSString *> *)getSwithResolution:(int)trackIndex {
     NSMutableArray * array = [[NSMutableArray alloc] init];
     if (self.resolutionArray != nil && self.resolutionArray.count != 0) {
@@ -171,6 +189,10 @@ static NSString * const spltSlash = @"/";
         }
     }
     return dic;
+}
+
+- (void)setPlayerUrl:(NSString *)playerUrl {
+    _playerUrl = playerUrl;
 }
 
 - (void)setSpliceOriginUrl:(NSString *)spliceOriginUrl {

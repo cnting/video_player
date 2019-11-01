@@ -10,6 +10,7 @@
 
 @interface VideoPlayerPluginManager : NSObject
 
+@property (readonly, nonatomic, strong) NSString * playerUrl;
 @property (readonly, nonatomic, strong) NSString * spliceOriginUrl; //主拼接链接
 @property (readonly, nonatomic, strong) NSArray * resolutionArray; // 分辨率数组
 @property (readonly, nonatomic, strong) NSArray * resolutionDownloadUrlArray; //对应分辨率下载数组
@@ -53,6 +54,8 @@
 - (BOOL)containsDownloadUrl:(NSString *)url;
 
 - (void)downloadSuccessAndDeleteDifferentResolutionCaches:(NSArray *)urls;
+
+- (void)removeVideoAllCache;
 
 @end
 
