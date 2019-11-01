@@ -407,6 +407,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     [_playerManager removeVideoAllCache];
     if (_playerManager.isPlayingCacheVideoUrl) {
         ///当前正在播放本地视频
+        NSString * playValue = [NSString stringWithFormat:@"%.0f",CMTimeGetSeconds(self.player.currentItem.currentTime)];
         ///关闭本地服务器
         [[ZBLM3u8Manager shareInstance] tryStopLocalService];
         ///通知UI当前视频未缓存
@@ -414,6 +415,8 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
         ///切换视频源
         AVPlayerItem* item = [AVPlayerItem playerItemWithURL:[NSURL URLWithString:_playerManager.playerUrl]];
         [_player replaceCurrentItemWithPlayerItem:item];
+        //代码中分母为1000，因此，分子*1000
+        [self seekTo:[playValue intValue] * 1000];
         [self addObservers:item];
     }
 }
