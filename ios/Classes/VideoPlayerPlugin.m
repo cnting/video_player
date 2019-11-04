@@ -402,6 +402,25 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     }
 }
 
+- (void)removeAllVideoCache {
+    ///删除本地缓存
+    [_playerManager removeVideoAllCache];
+    if (_playerManager.isPlayingCacheVideoUrl) {
+        ///当前正在播放本地视频
+        NSString * playValue = [NSString stringWithFormat:@"%.0f",CMTimeGetSeconds(self.player.currentItem.currentTime)];
+        ///关闭本地服务器
+        [[ZBLM3u8Manager shareInstance] tryStopLocalService];
+        ///通知UI当前视频未缓存
+        [self sendDownloadState:UNDOWNLOAD progress:0];
+        ///切换视频源
+        AVPlayerItem* item = [AVPlayerItem playerItemWithURL:[NSURL URLWithString:_playerManager.playerUrl]];
+        [_player replaceCurrentItemWithPlayerItem:item];
+        //代码中分母为1000，因此，分子*1000
+        [self seekTo:[playValue intValue] * 1000];
+        [self addObservers:item];
+    }
+}
+
 #pragma mark - downloadVideo delegate
 - (void)m3u8DownloadSuccess:(NSString *)normalDownloadUrl {
     if ([_playerManager containsDownloadUrl:normalDownloadUrl]) {
@@ -678,6 +697,9 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
         NSNumber * trackIndex = (NSNumber *)call.arguments[@"trackIndex"];
         NSString * name = call.arguments[@"name"];
         [player download:[trackIndex intValue] name:name];
+        result(nil);
+    } else if ([@"removeDownload" isEqualToString:call.method]) {
+        [player removeAllVideoCache];
         result(nil);
     } else {
         result(FlutterMethodNotImplemented);

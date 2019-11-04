@@ -7,13 +7,14 @@
 
 #import "VideoPlayerPluginManager.h"
 #import "ZBLM3u8Setting.h"
-
+#import "ZBLM3u8FileManager.h"
 static NSString * const spltSlash = @"/";
 
 @implementation VideoPlayerPluginManager
 
 - (instancetype)initWithOriginPlayerUrl:(NSString *)url {
     if (self = [super init]) {
+        self.playerUrl = url;
         if ([url containsString:spltSlash]) {
             self.spliceOriginUrl = [VideoPlayerPluginManager getVideoOriginSpliceUrl:url];
         }
@@ -34,20 +35,44 @@ static NSString * const spltSlash = @"/";
                 }
             }
         }
+        NSString * cacheUrlStr = [ZBLM3u8FileManager exitCacheTemporaryWithUrl:self.resolutionDownloadUrlArray];
+        if (![cacheUrlStr isEqualToString:@""]) {
+            ///已缓存对应文件
+            self.isPlayingCacheVideoUrl = true;
+        } else {
+            self.isPlayingCacheVideoUrl = false;
+        }
     }
     return self;
 }
 
 - (NSDictionary *)getVideoResulotions {
     NSMutableDictionary * dic = [[NSMutableDictionary alloc] init];
-    if (self.resolutionArray != nil && self.resolutionArray.count != 0) {
-        for (int i = 0; i < self.resolutionArray.count; ++i) {
-            NSString * resolutionString = self.resolutionArray[i];
-            if (resolutionString != nil) {
-                [dic setObject:resolutionString forKey:[NSNumber numberWithInt:i]];
+    NSString * cacheUrlStr = [ZBLM3u8FileManager exitCacheTemporaryWithUrl:self.resolutionDownloadUrlArray];
+    if (![cacheUrlStr isEqualToString:@""]) {
+        ///已缓存对应文件
+        int index = 0;
+        for (int i = 0; i < self.resolutionDownloadUrlArray.count; ++i) {
+            NSString * resolutionString = self.resolutionDownloadUrlArray[i];
+            if ([resolutionString isEqualToString:cacheUrlStr]) {
+                index = i;
+                break;
+            }
+        }
+        if (index <= self.resolutionArray.count - 1) {
+            [dic setObject:self.resolutionArray[index] forKey:[NSNumber numberWithInt:0]];
+        }
+    } else {
+        if (self.resolutionArray != nil && self.resolutionArray.count != 0) {
+            for (int i = 0; i < self.resolutionArray.count; ++i) {
+                NSString * resolutionString = self.resolutionArray[i];
+                if (resolutionString != nil) {
+                    [dic setObject:resolutionString forKey:[NSNumber numberWithInt:i]];
+                }
             }
         }
     }
+    
     return dic;
 }
 
@@ -99,6 +124,24 @@ static NSString * const spltSlash = @"/";
     if (urls.count != 0) {
         for (NSString * url in urls) {
             NSString * path = [ZBLM3u8Setting fullCommonDirPrefixWithUrl:url];
+            if ([[NSFileManager defaultManager] fileExistsAtPath:path]) {
+                [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+            }
+        }
+    }
+}
+
+- (void)removeVideoAllCache {
+    if (self.resolutionDownloadUrlArray.count != 0) {
+        for (NSString * url in self.resolutionDownloadUrlArray) {
+            NSString * path = [ZBLM3u8Setting fullCommonDirPrefixWithUrl:url];
+            if ([[NSFileManager defaultManager] fileExistsAtPath:path]) {
+                [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
+            }
+        }
+        
+        for (NSString * url in self.resolutionDownloadUrlArray) {
+            NSString * path = [[ZBLM3u8Setting downloadTemporaryPath] stringByAppendingString:[NSString stringWithFormat:@"/%@",[ZBLM3u8Setting uuidWithUrl:url]]];
             if ([[NSFileManager defaultManager] fileExistsAtPath:path]) {
                 [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
             }
@@ -173,6 +216,10 @@ static NSString * const spltSlash = @"/";
     return dic;
 }
 
+- (void)setPlayerUrl:(NSString *)playerUrl {
+    _playerUrl = playerUrl;
+}
+
 - (void)setSpliceOriginUrl:(NSString *)spliceOriginUrl {
     _spliceOriginUrl = spliceOriginUrl;
 }
@@ -183,6 +230,10 @@ static NSString * const spltSlash = @"/";
 
 - (void)setResolutionDownloadUrlArray:(NSArray *)resolutionDownloadUrlArray {
     _resolutionDownloadUrlArray = resolutionDownloadUrlArray;
+}
+
+- (void)setIsPlayingCacheVideoUrl:(BOOL)isPlayingCacheVideoUrl {
+    _isPlayingCacheVideoUrl = isPlayingCacheVideoUrl;
 }
 
 @end
