@@ -7,6 +7,7 @@ import android.os.Looper;
 import io.flutter.plugin.common.EventChannel;
 
 import java.util.ArrayList;
+import java.util.concurrent.CopyOnWriteArrayList;
 
 /**
  * And implementation of {@link EventChannel.EventSink} which can wrap an underlying sink.
@@ -19,7 +20,7 @@ import java.util.ArrayList;
  */
 final class QueuingEventSink implements EventChannel.EventSink {
     private EventChannel.EventSink delegate;
-    private ArrayList<Object> eventQueue = new ArrayList<>();
+    private CopyOnWriteArrayList<Object> eventQueue = new CopyOnWriteArrayList<>();
     private boolean done = false;
     private Handler handler;
 
