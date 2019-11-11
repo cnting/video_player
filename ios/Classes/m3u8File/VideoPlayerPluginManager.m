@@ -146,6 +146,11 @@ static NSString * const spltSlash = @"/";
                 [[NSFileManager defaultManager] removeItemAtPath:path error:nil];
             }
         }
+        
+        NSString * cachePath = [[ZBLM3u8Setting commonDirPrefix] stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.txt",[ZBLM3u8Setting uuidWithUrl:self.playerUrl]]];
+        if ([[NSFileManager defaultManager] fileExistsAtPath:cachePath]) {
+            [[NSFileManager defaultManager] removeItemAtPath:cachePath error:nil];
+        }
     }
 }
 
@@ -183,6 +188,18 @@ static NSString * const spltSlash = @"/";
     NSString * spltTwo = @"x";
     NSString * spltThree = @"=";
     NSString *oriM3u8String = [NSString stringWithContentsOfURL:[NSURL URLWithString:urlStr] encoding:0 error:nil];;
+    NSString * cachePath = [[ZBLM3u8Setting commonDirPrefix] stringByAppendingPathComponent:[NSString stringWithFormat:@"%@.txt",[ZBLM3u8Setting uuidWithUrl:urlStr]]];
+    if (oriM3u8String == nil) {
+        if ([[NSFileManager defaultManager] fileExistsAtPath:cachePath]) {
+            oriM3u8String = [NSString stringWithContentsOfFile:cachePath encoding:0 error:nil];
+        }
+    } else {
+        if ([ZBLM3u8FileManager tryGreateDir:[ZBLM3u8Setting commonDirPrefix]]) {
+            if (![[NSFileManager defaultManager] fileExistsAtPath:cachePath]) {
+                [oriM3u8String writeToFile:cachePath atomically:true encoding:NSUTF8StringEncoding error:nil];
+            }
+        }
+    }
     NSArray * array = [oriM3u8String componentsSeparatedByString:@"\n"];
     NSString * suffixString = @".m3u8";
     NSString * resolationString = @"";
