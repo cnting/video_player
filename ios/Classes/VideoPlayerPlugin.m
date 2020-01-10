@@ -291,12 +291,7 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
     switch (item.status) {
       case AVPlayerItemStatusFailed:
         if (_eventSink != nil) {
-          _eventSink([FlutterError
-              errorWithCode:@"VideoError"
-                    message:[@"Failed to load video: "
-                                stringByAppendingString:[item.error localizedDescription]]
-                    details:nil]);
-          [self sendPlayStateChanged:false];
+            [self sendVideoError];
         }
         break;
       case AVPlayerItemStatusUnknown:
@@ -332,12 +327,30 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
   }
   if (_isPlaying) {
     [self sendPlayStateChanged:true];
+      CGFloat progress = CMTimeGetSeconds(_player.currentItem.currentTime) / CMTimeGetSeconds(_player.currentItem.duration);
+      if (progress >= 1.0) {
+          ///修改当视频播放完成，再次点击播放按钮需要重新开始播放
+          [self seekTo:0];
+      }
     [_player play];
   } else {
     [self sendPlayStateChanged:false];
     [_player pause];
   }
   _displayLink.paused = !_isPlaying;
+}
+
+- (void)sendVideoError {
+    NSString * cacheUrlStr = [ZBLM3u8FileManager exitCacheTemporaryWithUrl:_playerManager.resolutionDownloadUrlArray];
+    if ([cacheUrlStr isEqualToString:@""]) {
+        if (_eventSink != nil) {
+            [self sendPlayStateChanged:false];
+            _eventSink([FlutterError
+                        errorWithCode:@"VideoError"
+                        message:@"Failed to load video: "
+                        details:nil]);
+        }
+    }
 }
 
 - (void)sendPlayStateChanged:(BOOL)isPlaying {
@@ -405,19 +418,46 @@ static inline CGFloat radiansToDegrees(CGFloat radians) {
 - (void)removeAllVideoCache {
     ///删除本地缓存
     [_playerManager removeVideoAllCache];
+    [self sendDownloadState:UNDOWNLOAD progress:0];
+    if (@available(iOS 11.0, *)) {
+        
+    } else {
+        [[_player currentItem] removeObserver:self forKeyPath:@"status" context:statusContext];
+        [[_player currentItem] removeObserver:self
+                                   forKeyPath:@"loadedTimeRanges"
+                                      context:timeRangeContext];
+        [[_player currentItem] removeObserver:self
+                                   forKeyPath:@"playbackLikelyToKeepUp"
+                                      context:playbackLikelyToKeepUpContext];
+        [[_player currentItem] removeObserver:self
+                                   forKeyPath:@"playbackBufferEmpty"
+                                      context:playbackBufferEmptyContext];
+        [[_player currentItem] removeObserver:self
+                                   forKeyPath:@"playbackBufferFull"
+                                      context:playbackBufferFullContext];
+        [_player replaceCurrentItemWithPlayerItem:nil];
+        [[NSNotificationCenter defaultCenter] removeObserver:self];
+    }
     if (_playerManager.isPlayingCacheVideoUrl) {
         ///当前正在播放本地视频
         NSString * playValue = [NSString stringWithFormat:@"%.0f",CMTimeGetSeconds(self.player.currentItem.currentTime)];
         ///关闭本地服务器
         [[ZBLM3u8Manager shareInstance] tryStopLocalService];
         ///通知UI当前视频未缓存
-        [self sendDownloadState:UNDOWNLOAD progress:0];
         ///切换视频源
-        AVPlayerItem* item = [AVPlayerItem playerItemWithURL:[NSURL URLWithString:_playerManager.playerUrl]];
-        [_player replaceCurrentItemWithPlayerItem:item];
-        //代码中分母为1000，因此，分子*1000
-        [self seekTo:[playValue intValue] * 1000];
-        [self addObservers:item];
+        @try {
+            AVPlayerItem* item = [AVPlayerItem playerItemWithURL:[NSURL URLWithString:_playerManager.playerUrl]];
+            [_player replaceCurrentItemWithPlayerItem:item];
+            //代码中分母为1000，因此，分子*1000
+            [self seekTo:[playValue intValue] * 1000];
+            [self addObservers:item];
+        } @catch (NSException *exception) {
+            NSLog(@">>>>>exception:%@",exception);
+        } @finally {
+            
+        }
+    } else {
+        [self sendResolutions:[_playerManager getVideoResulotions]];
     }
 }
 
