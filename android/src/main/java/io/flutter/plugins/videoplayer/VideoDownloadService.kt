@@ -1,11 +1,13 @@
 package io.flutter.plugins.videoplayer
 
 import android.app.Notification
+import android.content.Context
 import android.util.Log
 import com.google.android.exoplayer2.offline.Download
 import com.google.android.exoplayer2.offline.DownloadManager
 import com.google.android.exoplayer2.offline.DownloadService
 import com.google.android.exoplayer2.scheduler.PlatformScheduler
+import com.google.android.exoplayer2.scheduler.Requirements
 import com.google.android.exoplayer2.scheduler.Scheduler
 import com.google.android.exoplayer2.ui.DownloadNotificationHelper
 import com.google.android.exoplayer2.util.NotificationUtil
@@ -23,44 +25,44 @@ class VideoDownloadService : DownloadService(
         R.string.download_channel_name_description
 ) {
 
-    private val CHANNEL_ID = "download_channel"
     private val JOB_ID = 1
-    private val FOREGROUND_NOTIFICATION_ID = 1
-    private var nextNotificationId = FOREGROUND_NOTIFICATION_ID + 1
 
-    lateinit var notificationHelper: DownloadNotificationHelper
-
-    override fun onCreate() {
-        super.onCreate()
-        notificationHelper = DownloadNotificationHelper(this, CHANNEL_ID)
-    }
 
     override fun getDownloadManager(): DownloadManager {
-        return VideoDownloadManager.getInstance(applicationContext).downloadManager
+        val notificationHelper = VideoDownloadManager.getInstance(applicationContext).downloadNotificationHelper
+        val downloadManager = VideoDownloadManager.getInstance(applicationContext).downloadManager
+        downloadManager.addListener(TerminalStateNotificationHelper(this, notificationHelper))
+        return downloadManager
     }
 
-    override fun getForegroundNotification(downloads: MutableList<Download>?): Notification {
+    override fun getForegroundNotification(downloads: MutableList<Download>): Notification {
+        val notificationHelper = VideoDownloadManager.getInstance(applicationContext).downloadNotificationHelper
         return notificationHelper.buildProgressNotification(android.R.drawable.stat_sys_download, null, null, downloads)
     }
 
     override fun getScheduler(): Scheduler? {
         return if (Util.SDK_INT >= 21) PlatformScheduler(this, JOB_ID) else null
     }
+}
 
-    override fun onDownloadChanged(download: Download?) {
+class TerminalStateNotificationHelper(private val context: Context, private val notificationHelper: DownloadNotificationHelper) : DownloadManager.Listener {
+    private val FOREGROUND_NOTIFICATION_ID = 1
+    private var nextNotificationId = FOREGROUND_NOTIFICATION_ID + 1
+
+    override fun onDownloadChanged(downloadManager: DownloadManager, download: Download) {
         val notification: Notification? = when {
-            download?.state == Download.STATE_COMPLETED -> notificationHelper.buildDownloadCompletedNotification(
+            download.state == Download.STATE_COMPLETED -> notificationHelper.buildDownloadCompletedNotification(
                     android.R.drawable.stat_sys_download_done,
                     /* contentIntent= */ null,
                     Util.fromUtf8Bytes(download.request.data)
             )/* contentIntent= */
-            download?.state == Download.STATE_FAILED -> notificationHelper.buildDownloadFailedNotification(
+            download.state == Download.STATE_FAILED -> notificationHelper.buildDownloadFailedNotification(
                     android.R.drawable.stat_notify_error, null,
                     Util.fromUtf8Bytes(download.request.data)
             )
             else -> return
         }
-        NotificationUtil.setNotification(this, nextNotificationId++, notification)
+        NotificationUtil.setNotification(context, nextNotificationId++, notification)
     }
 }
  

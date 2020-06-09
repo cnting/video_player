@@ -451,11 +451,9 @@ class _ResolutionsWidgetState extends State<ResolutionsWidget> {
     var getResolutionsBtn = RaisedButton(
       child: Text("获取分辨率"),
       onPressed: () {
-//        widget.controller.getResolutions().then((value) {
-//          setState(() {
-//            resolutions = value;
-//          });
-//        });
+        setState(() {
+          resolutions = widget.controller.value.resolutions;
+        });
       },
     );
     List<Widget> widgets = [getResolutionsBtn];

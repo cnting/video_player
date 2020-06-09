@@ -89,15 +89,15 @@ class VideoDownloadTracker(downloadManager: DownloadManager) {
 
     private inner class DownloadManagerListener : DownloadManager.Listener {
 
-        override fun onDownloadChanged(downloadManager: DownloadManager?, download: Download?) {
-            downloads[download!!.request.uri] = download
+        override fun onDownloadChanged(downloadManager: DownloadManager, download: Download) {
+            downloads[download.request.uri] = download
             for (listener in listeners) {
                 listener.onDownloadsChanged()
             }
         }
 
-        override fun onDownloadRemoved(downloadManager: DownloadManager?, download: Download?) {
-            downloads.remove(download!!.request.uri)
+        override fun onDownloadRemoved(downloadManager: DownloadManager, download: Download) {
+            downloads.remove(download.request.uri)
             for (listener in listeners) {
                 listener.onDownloadsChanged()
             }

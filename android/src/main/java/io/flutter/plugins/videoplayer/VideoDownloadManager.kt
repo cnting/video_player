@@ -9,6 +9,7 @@ import com.google.android.exoplayer2.offline.DefaultDownloadIndex
 import com.google.android.exoplayer2.offline.DefaultDownloaderFactory
 import com.google.android.exoplayer2.offline.DownloadManager
 import com.google.android.exoplayer2.offline.DownloaderConstructorHelper
+import com.google.android.exoplayer2.ui.DownloadNotificationHelper
 import com.google.android.exoplayer2.upstream.*
 import com.google.android.exoplayer2.upstream.cache.*
 import com.google.android.exoplayer2.util.Util
@@ -46,6 +47,11 @@ class VideoDownloadManager private constructor(private val context: Context) {
     val downloadTracker: VideoDownloadTracker by lazy {
         val downloadTracker = VideoDownloadTracker(downloadManager)
         downloadTracker
+    }
+
+    val downloadNotificationHelper:DownloadNotificationHelper by lazy {
+        val helper = DownloadNotificationHelper(context, "download_channel")
+        helper
     }
 
     private val databaseProvider: DatabaseProvider by lazy {
