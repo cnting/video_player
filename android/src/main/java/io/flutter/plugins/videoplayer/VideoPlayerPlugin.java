@@ -7,6 +7,7 @@ package io.flutter.plugins.videoplayer;
 import android.content.Context;
 import android.net.Uri;
 import android.os.Build;
+import android.util.Log;
 import android.util.LongSparseArray;
 import android.view.Surface;
 
@@ -560,15 +561,14 @@ public class VideoPlayerPlugin implements MethodCallHandler {
         }
 
         void initDownloadState(VideoDownloadManager videoDownloadManager) {
-            @Download.State Download download = sendDownloadState(videoDownloadManager);
+            Download download = sendDownloadState(videoDownloadManager);
             if (download != null) {
                 //如果在STATE_DOWNLOADING状态，直到下载完成onDownloadsChanged才会回调，所以不能用startRefreshProgressTask()方法
                 startRefreshProgressTimer(null);
             }
         }
 
-        private @Download.State
-        Download sendDownloadState(VideoDownloadManager videoDownloadManager) {
+        private Download sendDownloadState(VideoDownloadManager videoDownloadManager) {
             Download download = videoDownloadManager.getDownloadTracker().getDownload(dataSourceUri);
 
             Map<String, Object> event = new HashMap<>();
@@ -618,7 +618,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             if (downloadHelper != null) {
                 downloadHelper.release();
             }
-            downloadHelper = DownloadHelper.forHls(dataSourceUri, dataSourceFactory, renderersFactory);
+            downloadHelper = DownloadHelper.forHls(context, dataSourceUri, dataSourceFactory, renderersFactory);
             downloadHelper.prepare(new DownloadHelper.Callback() {
                 @Override
                 public void onPrepared(DownloadHelper helper) {
@@ -629,11 +629,11 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                             DefaultTrackSelector.SelectionOverride selectionOverride = new DefaultTrackSelector.SelectionOverride(0, trackIndex);
                             List<DefaultTrackSelector.SelectionOverride> list = new ArrayList<>();
                             list.add(selectionOverride);
-                            helper.addTrackSelectionForSingleRenderer(periodIndex, 0, DownloadHelper.DEFAULT_TRACK_SELECTOR_PARAMETERS, list);
+                            helper.addTrackSelectionForSingleRenderer(periodIndex, 0, DownloadHelper.getDefaultTrackSelectorParameters(context), list);
                         }
                     }
                     DownloadRequest downloadRequest = helper.getDownloadRequest(Util.getUtf8Bytes(downloadNotificationName));
-                    DownloadService.sendAddDownload(context, VideoDownloadService.class, downloadRequest, false);
+                    DownloadService.sendAddDownload(context, VideoDownloadService.class, downloadRequest, 0, false);
                 }
 
                 @Override
