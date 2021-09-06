@@ -323,7 +323,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
           break;
         case 'downloadState':
           final int state = map['state'];
-          double progress = map['progress'];
+          double progress = map['progress'] ?? 0;
           downloadNotifier.value = DownloadState(state, progress: progress);
           break;
       }
