@@ -207,7 +207,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         package = null,
         super(VideoPlayerValue(duration: null));
 
-  late int _textureId;
+  int? _textureId;
   final String dataSource;
 
   /// Describes the type of data source this [VideoPlayerController]
@@ -224,7 +224,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       ValueNotifier(DownloadState(DownloadState.UNDOWNLOAD));
 
   @visibleForTesting
-  int get textureId => _textureId;
+  int get textureId => _textureId ?? -1;
 
   Future<void> initialize() async {
     _lifeCycleObserver = _VideoAppLifeCycleObserver(this);
@@ -302,7 +302,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
         case 'playStateChanged':
           final bool isPlaying = map['isPlaying'];
 
-          if (isPlaying && !(_timer?.isActive==true )) {
+          if (isPlaying && !(_timer?.isActive == true)) {
             _startTimer();
           } else if (!isPlaying) {
             _cancelTimer();
@@ -340,7 +340,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
       _cancelTimer();
     }
 
-    _eventSubscription = _eventChannelFor(_textureId)
+    _eventSubscription = _eventChannelFor(textureId)
         .receiveBroadcastStream()
         .listen(eventListener, onError: errorListener);
     return initializingCompleter.future;
