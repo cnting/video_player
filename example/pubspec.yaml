@@ -1,6 +1,9 @@
 name: video_player_example
 description: Demonstrates how to use the video_player plugin.
 
+environment:
+  sdk: ">=2.10.0 <3.0.0"
+
 dependencies:
   flutter:
     sdk: flutter

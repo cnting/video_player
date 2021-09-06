@@ -246,23 +246,21 @@ Widget buildCard(String title) {
           leading: const Icon(Icons.airline_seat_flat_angled),
           title: Text(title),
         ),
-        ButtonTheme.bar(
-          child: ButtonBar(
-            children: <Widget>[
-              FlatButton(
-                child: const Text('BUY TICKETS'),
-                onPressed: () {
-                  /* ... */
-                },
-              ),
-              FlatButton(
-                child: const Text('SELL TICKETS'),
-                onPressed: () {
-                  /* ... */
-                },
-              ),
-            ],
-          ),
+        ButtonBar(
+          children: <Widget>[
+            FlatButton(
+              child: const Text('BUY TICKETS'),
+              onPressed: () {
+                /* ... */
+              },
+            ),
+            FlatButton(
+              child: const Text('SELL TICKETS'),
+              onPressed: () {
+                /* ... */
+              },
+            ),
+          ],
         ),
       ],
     ),
@@ -390,7 +388,7 @@ void main() {
                     Container(
                       padding: const EdgeInsets.all(20),
                       child: NetworkPlayerLifeCycle(
-                          'http://res.uquabc.com/HLS_Apple/all.m3u8',
+                          'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
                           (BuildContext context,
                                   VideoPlayerController controller) =>
                               Column(

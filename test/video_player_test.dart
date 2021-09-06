@@ -1,5 +1,6 @@
 import 'dart:async';
 import 'package:flutter/foundation.dart';
+import 'package:flutter/src/services/system_chrome.dart';
 import 'package:flutter/widgets.dart';
 import 'package:video_player/video_player.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -14,14 +15,14 @@ class FakeController extends ValueNotifier<VideoPlayerValue>
   }
 
   @override
-  int textureId;
+  late int textureId;
 
   @override
   String get dataSource => '';
   @override
   DataSourceType get dataSourceType => DataSourceType.file;
   @override
-  String get package => null;
+  String get package => '';
   @override
   Future<Duration> get position async => value.position;
 
@@ -37,6 +38,39 @@ class FakeController extends ValueNotifier<VideoPlayerValue>
   Future<void> play() async {}
   @override
   Future<void> setLooping(bool looping) async {}
+
+  @override
+  late ValueNotifier<DownloadState> downloadNotifier;
+
+  @override
+  Future<void> changeScreenOrientation(DeviceOrientation orientation) {
+    // TODO: implement changeScreenOrientation
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> download(int trackIndex, String name) {
+    // TODO: implement download
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> removeDownload() {
+    // TODO: implement removeDownload
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> setSpeed(double speed) {
+    // TODO: implement setSpeed
+    throw UnimplementedError();
+  }
+
+  @override
+  Future<void> switchResolutions(int trackIndex) {
+    // TODO: implement switchResolutions
+    throw UnimplementedError();
+  }
 }
 
 void main() {
