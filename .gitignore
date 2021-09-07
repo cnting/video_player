@@ -28,3 +28,4 @@ example/ios/Runner.xcworkspace/xcuserdata/
 .dart_tool/
 example/.dart_tool/
 example/.flutter-plugins-dependencies
+ios/Classes/

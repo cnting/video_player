@@ -58,11 +58,11 @@ android {
     }
 
     dependencies {
-        implementation 'com.google.android.exoplayer:exoplayer-core:2.11.5'
-        implementation 'com.google.android.exoplayer:exoplayer-hls:2.11.5'
-        implementation 'com.google.android.exoplayer:exoplayer-dash:2.11.5'
-        implementation 'com.google.android.exoplayer:exoplayer-smoothstreaming:2.11.5'
-        implementation 'com.google.android.exoplayer:exoplayer-ui:2.11.5'
+        implementation 'com.google.android.exoplayer:exoplayer-core:2.15.0'
+        implementation 'com.google.android.exoplayer:exoplayer-hls:2.15.0'
+        implementation 'com.google.android.exoplayer:exoplayer-dash:2.15.0'
+        implementation 'com.google.android.exoplayer:exoplayer-smoothstreaming:2.15.0'
+        implementation 'com.google.android.exoplayer:exoplayer-ui:2.15.0'
     }
 }
 repositories {

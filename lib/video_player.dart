@@ -454,7 +454,7 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
   }
 
   Future<void> seekTo(Duration moment) async {
-    if (_isDisposed) {
+    if (_isDisposed || _textureId == null) {
       return;
     }
     if (value.duration != null && moment > value.duration!) {
@@ -462,7 +462,6 @@ class VideoPlayerController extends ValueNotifier<VideoPlayerValue> {
     } else if (moment < const Duration()) {
       moment = const Duration();
     }
-    print('===>_textureId:$_textureId');
     await _channel.invokeMethod<void>('seekTo', <String, dynamic>{
       'textureId': _textureId,
       'location': moment.inMilliseconds,

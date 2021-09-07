@@ -388,7 +388,7 @@ void main() {
                     Container(
                       padding: const EdgeInsets.all(20),
                       child: NetworkPlayerLifeCycle(
-                          'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
+                          'https://storage.googleapis.com/shaka-demo-assets/angel-one-hls/hls.m3u8',
                           (BuildContext context,
                                   VideoPlayerController controller) =>
                               Column(

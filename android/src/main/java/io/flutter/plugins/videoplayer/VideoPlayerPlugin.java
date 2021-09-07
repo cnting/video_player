@@ -6,30 +6,26 @@ package io.flutter.plugins.videoplayer;
 
 import android.content.Context;
 import android.net.Uri;
-import android.os.Build;
-import android.util.Log;
 import android.util.LongSparseArray;
 import android.view.Surface;
 
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.DefaultRenderersFactory;
-import com.google.android.exoplayer2.ExoPlaybackException;
-import com.google.android.exoplayer2.ExoPlayerFactory;
 import com.google.android.exoplayer2.Format;
+import com.google.android.exoplayer2.MediaItem;
+import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.PlaybackParameters;
 import com.google.android.exoplayer2.Player;
-import com.google.android.exoplayer2.Player.EventListener;
 import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
 import com.google.android.exoplayer2.Timeline;
 import com.google.android.exoplayer2.audio.AudioAttributes;
-import com.google.android.exoplayer2.extractor.DefaultExtractorsFactory;
 import com.google.android.exoplayer2.offline.Download;
 import com.google.android.exoplayer2.offline.DownloadHelper;
 import com.google.android.exoplayer2.offline.DownloadRequest;
 import com.google.android.exoplayer2.offline.DownloadService;
-import com.google.android.exoplayer2.source.ExtractorMediaSource;
 import com.google.android.exoplayer2.source.MediaSource;
+import com.google.android.exoplayer2.source.ProgressiveMediaSource;
 import com.google.android.exoplayer2.source.TrackGroupArray;
 import com.google.android.exoplayer2.source.dash.DashMediaSource;
 import com.google.android.exoplayer2.source.dash.DefaultDashChunkSource;
@@ -44,8 +40,9 @@ import com.google.android.exoplayer2.trackselection.TrackSelectionArray;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
 import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
-import com.google.android.exoplayer2.upstream.DefaultHttpDataSourceFactory;
 import com.google.android.exoplayer2.util.Util;
+
+import org.jetbrains.annotations.NotNull;
 
 import java.io.IOException;
 import java.util.ArrayList;
@@ -108,7 +105,7 @@ public class VideoPlayerPlugin implements MethodCallHandler {
     }
 
     @Override
-    public void onMethodCall(MethodCall call, Result result) {
+    public void onMethodCall(@NotNull MethodCall call, @NotNull Result result) {
         TextureRegistry textures = registrar.textures();
         if (textures == null) {
             result.error("no_activity", "video_player plugin requires a foreground activity", null);
@@ -225,20 +222,19 @@ public class VideoPlayerPlugin implements MethodCallHandler {
 
     private static class VideoPlayer {
 
-        private SimpleExoPlayer exoPlayer;
-        private DefaultTrackSelector trackSelector;
-        private DataSource.Factory dataSourceFactory;
-        private RenderersFactory renderersFactory;
+        private final SimpleExoPlayer exoPlayer;
+        private final DefaultTrackSelector trackSelector;
+        private final DataSource.Factory dataSourceFactory;
+        private final RenderersFactory renderersFactory;
         private Surface surface;
         private final TextureRegistry.SurfaceTextureEntry textureEntry;
-        private QueuingEventSink eventSink = new QueuingEventSink();
+        private final QueuingEventSink eventSink = new QueuingEventSink();
         private final EventChannel eventChannel;
         private boolean isInitialized = false;
-        private Uri dataSourceUri;
+        private final Uri dataSourceUri;
         private DownloadHelper downloadHelper;
-        private Context context;
-        private final int videoRenererIndex = 0;
-        private VideoDownloadManager videoDownloadManager;
+        private final Context context;
+        private final VideoDownloadManager videoDownloadManager;
         private Timer refreshProgressTimer;
 
         VideoPlayer(
@@ -254,19 +250,18 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             this.videoDownloadManager = videoDownloadManager;
 
             renderersFactory = new DefaultRenderersFactory(context);
-            trackSelector = new DefaultTrackSelector();
-            exoPlayer = ExoPlayerFactory.newSimpleInstance(context, renderersFactory, trackSelector);
+            trackSelector = new DefaultTrackSelector(context);
+            exoPlayer = new SimpleExoPlayer.Builder(context, renderersFactory)
+                    .setTrackSelector(trackSelector)
+                    .build();
 
             if (isFileOrAsset(dataSourceUri)) {
                 dataSourceFactory = new DefaultDataSourceFactory(context, "ExoPlayer");
             } else {
                 dataSourceFactory =
-                        new DefaultHttpDataSourceFactory(
-                                "ExoPlayer",
-                                null,
-                                DefaultHttpDataSource.DEFAULT_CONNECT_TIMEOUT_MILLIS,
-                                DefaultHttpDataSource.DEFAULT_READ_TIMEOUT_MILLIS,
-                                true);
+                        new DefaultHttpDataSource.Factory()
+                                .setUserAgent("ExoPlayer")
+                                .setAllowCrossProtocolRedirects(true);
             }
 
             MediaSource mediaSource = buildMediaSource(dataSourceUri, dataSourceFactory, context);
@@ -292,24 +287,23 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                 return DownloadHelper.createMediaSource(downloadRequest, videoDownloadManager.getLocalDataSourceFactory());
             }
 
-            int type = Util.inferContentType(uri.getLastPathSegment());
+            @C.ContentType int type = Util.inferContentType(uri);
             switch (type) {
                 case C.TYPE_SS:
                     return new SsMediaSource.Factory(
                             new DefaultSsChunkSource.Factory(mediaDataSourceFactory),
                             new DefaultDataSourceFactory(context, null, mediaDataSourceFactory))
-                            .createMediaSource(uri);
+                            .createMediaSource(MediaItem.fromUri(uri));
                 case C.TYPE_DASH:
                     return new DashMediaSource.Factory(
                             new DefaultDashChunkSource.Factory(mediaDataSourceFactory),
                             new DefaultDataSourceFactory(context, null, mediaDataSourceFactory))
-                            .createMediaSource(uri);
+                            .createMediaSource(MediaItem.fromUri(uri));
                 case C.TYPE_HLS:
-                    return new HlsMediaSource.Factory(mediaDataSourceFactory).createMediaSource(uri);
+                    return new HlsMediaSource.Factory(mediaDataSourceFactory).createMediaSource(MediaItem.fromUri(uri));
                 case C.TYPE_OTHER:
-                    return new ExtractorMediaSource.Factory(mediaDataSourceFactory)
-                            .setExtractorsFactory(new DefaultExtractorsFactory())
-                            .createMediaSource(uri);
+                    return new ProgressiveMediaSource.Factory(mediaDataSourceFactory)
+                            .createMediaSource(MediaItem.fromUri(uri));
                 default: {
                     throw new IllegalStateException("Unsupported type: " + type);
                 }
@@ -339,15 +333,15 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             setAudioAttributes(exoPlayer);
 
             exoPlayer.addListener(
-                    new EventListener() {
+                    new Player.Listener() {
+
                         @Override
-                        public void onPlayerStateChanged(final boolean playWhenReady, final int playbackState) {
+                        public void onPlaybackStateChanged(int playbackState) {
                             if (playbackState == Player.STATE_BUFFERING) {
                                 sendBufferingStart();
                                 sendBufferingUpdate();
                             } else if (playbackState == Player.STATE_READY) {
                                 sendBufferingEnd();
-                                sendPlayStateChange(playWhenReady);
                                 if (!isInitialized) {
                                     isInitialized = true;
                                     sendInitialized();
@@ -360,49 +354,45 @@ public class VideoPlayerPlugin implements MethodCallHandler {
                         }
 
                         @Override
-                        public void onPlayerError(final ExoPlaybackException error) {
-                            if (eventSink != null) {
-                                eventSink.error("VideoError", "Video player had error " + error, null);
-                            }
+                        public void onPlayWhenReadyChanged(boolean playWhenReady, int reason) {
+                            sendPlayStateChange(playWhenReady);
                         }
 
-//                        @Override
-//                        public void onLoadingChanged(boolean isLoading) {
-//                            if(isLoading){
-//                                sendBufferingStart();
-//                            }else{
-//                                sendBufferingEnd();
-//                            }
-//                        }
-
+                        @Override
+                        public void onPlayerError(@NotNull PlaybackException error) {
+                            eventSink.error("VideoError", "Video player had error " + error, null);
+                        }
 
                         @Override
-                        public void onTracksChanged(TrackGroupArray trackGroups, TrackSelectionArray trackSelections) {
+                        public void onTimelineChanged(@NotNull Timeline timeline, int reason) {
+                            parseManifest(exoPlayer.getCurrentManifest());
+                        }
+
+                        @Override
+                        public void onTracksChanged(@NotNull TrackGroupArray trackGroups, @NotNull TrackSelectionArray trackSelections) {
                             if (trackSelections != null && trackSelections.length > 0 && trackSelections.get(0) != null) {
-                                sendResolutionChange(trackSelections.get(0).getSelectedIndexInTrackGroup());
+                                sendResolutionChange(trackSelections.get(0).getIndexInTrackGroup(0));   //todo 还不知道怎么改
                             }
-                        }
-
-                        @Override
-                        public void onTimelineChanged(Timeline timeline, Object manifest, int reason) {
-                            // TODO: 看看服务端能不能加上NAME标签  https://github.com/google/ExoPlayer/issues/2914
-                            if (manifest instanceof HlsManifest) {
-                                HlsManifest hlsManifest = (HlsManifest) manifest;
-                                Map<Integer, String> map = new HashMap<>();
-                                for (int i = 0; i < hlsManifest.masterPlaylist.variants.size(); i++) {
-                                    HlsMasterPlaylist.Variant variant = hlsManifest.masterPlaylist.variants.get(i);
-                                    String resolution = variant.format.width + "x" + variant.format.height;
-                                    map.put(i, resolution);
-                                }
-                                sendResolutions(map);
-                            }
-
                         }
                     });
 
             Map<String, Object> reply = new HashMap<>();
             reply.put("textureId", textureEntry.id());
             result.success(reply);
+        }
+
+
+        private void parseManifest(Object manifest) {
+            if (manifest instanceof HlsManifest) {
+                HlsManifest hlsManifest = (HlsManifest) manifest;
+                Map<Integer, String> map = new HashMap<>();
+                for (int i = 0; i < hlsManifest.masterPlaylist.variants.size(); i++) {
+                    HlsMasterPlaylist.Variant variant = hlsManifest.masterPlaylist.variants.get(i);
+                    String resolution = variant.format.width + "x" + variant.format.height;
+                    map.put(i, resolution);
+                }
+                sendResolutions(map);
+            }
         }
 
         private void sendResolutions(Map<Integer, String> map) {
@@ -447,14 +437,9 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             eventSink.success(event);
         }
 
-        @SuppressWarnings("deprecation")
         private static void setAudioAttributes(SimpleExoPlayer exoPlayer) {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-                exoPlayer.setAudioAttributes(
-                        new AudioAttributes.Builder().setContentType(C.CONTENT_TYPE_MOVIE).build());
-            } else {
-                exoPlayer.setAudioStreamType(C.STREAM_TYPE_MUSIC);
-            }
+            exoPlayer.setAudioAttributes(
+                    new AudioAttributes.Builder().setContentType(C.CONTENT_TYPE_MOVIE).build(), true);
         }
 
         void play() {
@@ -540,8 +525,6 @@ public class VideoPlayerPlugin implements MethodCallHandler {
         /**
          * 切换清晰度
          * https://exoplayer.dev/doc/reference/com/google/android/exoplayer2/trackselection/DefaultTrackSelector.html
-         *
-         * @param trackIndex
          */
         void switchResolution(int trackIndex) {
             if (!isInitialized) {
@@ -552,11 +535,12 @@ public class VideoPlayerPlugin implements MethodCallHandler {
             if (currentMappedTrackInfo == null || parameters == null) {
                 return;
             }
-            TrackGroupArray trackGroups = currentMappedTrackInfo.getTrackGroups(videoRenererIndex);
+            int videoRendererIndex = 0;
+            TrackGroupArray trackGroups = currentMappedTrackInfo.getTrackGroups(videoRendererIndex);
             DefaultTrackSelector.ParametersBuilder parametersBuilder = parameters.buildUpon();
             parametersBuilder.clearSelectionOverrides();
             DefaultTrackSelector.SelectionOverride selectionOverride = new DefaultTrackSelector.SelectionOverride(0, trackIndex);
-            parametersBuilder.setSelectionOverride(videoRenererIndex, trackGroups, selectionOverride);
+            parametersBuilder.setSelectionOverride(videoRendererIndex, trackGroups, selectionOverride);
             trackSelector.setParameters(parametersBuilder);
         }
 
@@ -593,14 +577,12 @@ public class VideoPlayerPlugin implements MethodCallHandler {
 
         /**
          * 下载指定分辨率视频，暂时只支持hls
-         *
-         * @param trackIndex
          */
         void download(int trackIndex, String downloadNotificationName) {
             if (isFileOrAsset(dataSourceUri)) {
                 return;
             }
-            int type = Util.inferContentType(dataSourceUri.getLastPathSegment());
+            int type = Util.inferContentType(dataSourceUri);
             switch (type) {
                 case C.TYPE_HLS:
                     downloadHls(trackIndex, downloadNotificationName);

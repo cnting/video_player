@@ -22,6 +22,7 @@ import com.google.android.exoplayer2.offline.DownloadManager
 import com.google.android.exoplayer2.offline.DownloadRequest
 import com.google.android.exoplayer2.util.Log
 import java.io.IOException
+import java.lang.Exception
 import java.util.*
 import java.util.concurrent.CopyOnWriteArraySet
 
@@ -89,7 +90,11 @@ class VideoDownloadTracker(downloadManager: DownloadManager) {
 
     private inner class DownloadManagerListener : DownloadManager.Listener {
 
-        override fun onDownloadChanged(downloadManager: DownloadManager, download: Download) {
+        override fun onDownloadChanged(
+            downloadManager: DownloadManager,
+            download: Download,
+            finalException: Exception?
+        ) {
             downloads[download.request.uri] = download
             for (listener in listeners) {
                 listener.onDownloadsChanged()

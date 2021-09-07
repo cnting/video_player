@@ -12,32 +12,41 @@ import com.google.android.exoplayer2.scheduler.Scheduler
 import com.google.android.exoplayer2.ui.DownloadNotificationHelper
 import com.google.android.exoplayer2.util.NotificationUtil
 import com.google.android.exoplayer2.util.Util
+import java.lang.Exception
 
 /**
  * Created by cnting on 2019-08-05
  * 下载
  */
 class VideoDownloadService : DownloadService(
-        1,
-        DEFAULT_FOREGROUND_NOTIFICATION_UPDATE_INTERVAL,
-        "download_channel",
-        R.string.download_channel_name,
-        R.string.download_channel_name_description
+    1,
+    DEFAULT_FOREGROUND_NOTIFICATION_UPDATE_INTERVAL,
+    "download_channel",
+    R.string.download_channel_name,
+    R.string.download_channel_name_description
 ) {
 
     private val JOB_ID = 1
 
 
     override fun getDownloadManager(): DownloadManager {
-        val notificationHelper = VideoDownloadManager.getInstance(applicationContext).downloadNotificationHelper
+        val notificationHelper =
+            VideoDownloadManager.getInstance(applicationContext).downloadNotificationHelper
         val downloadManager = VideoDownloadManager.getInstance(applicationContext).downloadManager
         downloadManager.addListener(TerminalStateNotificationHelper(this, notificationHelper))
         return downloadManager
     }
 
     override fun getForegroundNotification(downloads: MutableList<Download>): Notification {
-        val notificationHelper = VideoDownloadManager.getInstance(applicationContext).downloadNotificationHelper
-        return notificationHelper.buildProgressNotification(android.R.drawable.stat_sys_download, null, null, downloads)
+        val notificationHelper =
+            VideoDownloadManager.getInstance(applicationContext).downloadNotificationHelper
+        return notificationHelper.buildProgressNotification(
+            this,
+            android.R.drawable.stat_sys_download,
+            null,
+            null,
+            downloads
+        )
     }
 
     override fun getScheduler(): Scheduler? {
@@ -45,20 +54,29 @@ class VideoDownloadService : DownloadService(
     }
 }
 
-class TerminalStateNotificationHelper(private val context: Context, private val notificationHelper: DownloadNotificationHelper) : DownloadManager.Listener {
+class TerminalStateNotificationHelper(
+    private val context: Context,
+    private val notificationHelper: DownloadNotificationHelper
+) : DownloadManager.Listener {
     private val FOREGROUND_NOTIFICATION_ID = 1
     private var nextNotificationId = FOREGROUND_NOTIFICATION_ID + 1
 
-    override fun onDownloadChanged(downloadManager: DownloadManager, download: Download) {
-        val notification: Notification? = when {
-            download.state == Download.STATE_COMPLETED -> notificationHelper.buildDownloadCompletedNotification(
-                    android.R.drawable.stat_sys_download_done,
-                    /* contentIntent= */ null,
-                    Util.fromUtf8Bytes(download.request.data)
+    override fun onDownloadChanged(
+        downloadManager: DownloadManager,
+        download: Download,
+        finalException: Exception?
+    ) {
+        val notification: Notification = when (download.state) {
+            Download.STATE_COMPLETED -> notificationHelper.buildDownloadCompletedNotification(
+                context,
+                android.R.drawable.stat_sys_download_done,
+                /* contentIntent= */ null,
+                Util.fromUtf8Bytes(download.request.data)
             )/* contentIntent= */
-            download.state == Download.STATE_FAILED -> notificationHelper.buildDownloadFailedNotification(
-                    android.R.drawable.stat_notify_error, null,
-                    Util.fromUtf8Bytes(download.request.data)
+            Download.STATE_FAILED -> notificationHelper.buildDownloadFailedNotification(
+                context,
+                android.R.drawable.stat_notify_error, null,
+                Util.fromUtf8Bytes(download.request.data)
             )
             else -> return
         }
