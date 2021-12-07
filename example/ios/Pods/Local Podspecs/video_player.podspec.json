@@ -25,6 +25,6 @@
   },
   "libraries": "xml2",
   "platforms": {
-    "ios": "8.0"
+    "ios": "9.0"
   }
 }

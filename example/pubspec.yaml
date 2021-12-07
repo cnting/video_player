@@ -1,6 +1,6 @@
 name: video_player_example
 description: Demonstrates how to use the video_player plugin.
-
+version: 0.10.1
 environment:
   sdk: ">=2.10.0 <3.0.0"
 
