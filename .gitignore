@@ -29,3 +29,4 @@ example/ios/Runner.xcworkspace/xcuserdata/
 example/.dart_tool/
 example/.flutter-plugins-dependencies
 ios/Classes/
+video_player/example/build
