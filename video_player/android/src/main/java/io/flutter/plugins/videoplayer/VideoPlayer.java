@@ -9,11 +9,13 @@ import static com.google.android.exoplayer2.Player.REPEAT_MODE_OFF;
 
 import android.content.Context;
 import android.net.Uri;
+import android.util.Log;
 import android.view.Surface;
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.ExoPlaybackException;
 import com.google.android.exoplayer2.Format;
 import com.google.android.exoplayer2.MediaItem;
+import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.PlaybackParameters;
 import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.Player.Listener;
@@ -91,10 +93,15 @@ final class VideoPlayer {
     }
 
     MediaSource mediaSource = buildMediaSource(uri, dataSourceFactory, formatHint, context);
+    Log.d("===>","11111");
     exoPlayer.setMediaSource(mediaSource);
+    Log.d("===>","22222");
     exoPlayer.prepare();
+    Log.d("===>","33333");
 
     setupVideoPlayer(eventChannel, textureEntry);
+
+    Log.d("===>","44444");
   }
 
   private static boolean isHTTP(Uri uri) {
@@ -207,13 +214,16 @@ final class VideoPlayer {
           }
 
           @Override
-          public void onPlayerError(final ExoPlaybackException error) {
+          public void onPlayerError(final PlaybackException error) {
+            error.printStackTrace();
             setBuffering(false);
+            Log.e("===>","onPlayerError:"+eventSink);
             if (eventSink != null) {
               eventSink.error("VideoError", "Video player had error " + error, null);
             }
           }
         });
+
   }
 
   void sendBufferingUpdate() {

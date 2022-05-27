@@ -30,3 +30,4 @@ example/.dart_tool/
 example/.flutter-plugins-dependencies
 ios/Classes/
 video_player/example/build
+video_player/android/build/

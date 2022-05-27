@@ -1,45 +1,3 @@
-package io.flutter.plugins.videoplayer;
-
-import static com.google.android.exoplayer2.upstream.HttpUtil.buildRangeRequestHeader;
-import static com.google.android.exoplayer2.util.Assertions.checkNotNull;
-import static com.google.android.exoplayer2.util.Util.castNonNull;
-import static java.lang.Math.min;
-
-import android.net.Uri;
-
-import androidx.annotation.Nullable;
-import androidx.annotation.VisibleForTesting;
-
-import com.google.android.exoplayer2.C;
-import com.google.android.exoplayer2.upstream.BaseDataSource;
-import com.google.android.exoplayer2.upstream.DataSource;
-import com.google.android.exoplayer2.upstream.DataSourceException;
-import com.google.android.exoplayer2.upstream.DataSpec;
-import com.google.android.exoplayer2.upstream.HttpDataSource;
-import com.google.android.exoplayer2.upstream.HttpUtil;
-import com.google.android.exoplayer2.upstream.TransferListener;
-import com.google.android.exoplayer2.util.Log;
-import com.google.android.exoplayer2.util.Util;
-import com.google.common.base.Ascii;
-import com.google.common.base.Predicate;
-import com.google.common.net.HttpHeaders;
-
-import java.io.IOException;
-import java.io.InputStream;
-import java.io.InterruptedIOException;
-import java.io.OutputStream;
-import java.lang.reflect.Method;
-import java.net.HttpURLConnection;
-import java.net.NoRouteToHostException;
-import java.net.ProtocolException;
-import java.net.Proxy;
-import java.net.URL;
-import java.util.Collections;
-import java.util.HashMap;
-import java.util.List;
-import java.util.Map;
-import java.util.zip.GZIPInputStream;
-
 /*
  * Copyright (C) 2016 The Android Open Source Project
  *
@@ -55,14 +13,50 @@ import java.util.zip.GZIPInputStream;
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
+package io.flutter.plugins.videoplayer;
+import static com.google.android.exoplayer2.upstream.HttpUtil.buildRangeRequestHeader;
+import static com.google.android.exoplayer2.util.Assertions.checkNotNull;
+import static com.google.android.exoplayer2.util.Util.castNonNull;
+import static java.lang.Math.min;
 
+import android.net.Uri;
+import androidx.annotation.Nullable;
+import androidx.annotation.VisibleForTesting;
+import com.google.android.exoplayer2.C;
+import com.google.android.exoplayer2.PlaybackException;
+import com.google.android.exoplayer2.upstream.BaseDataSource;
+import com.google.android.exoplayer2.upstream.DataSourceException;
+import com.google.android.exoplayer2.upstream.DataSpec;
+import com.google.android.exoplayer2.upstream.DataSpec.HttpMethod;
+import com.google.android.exoplayer2.upstream.HttpDataSource;
+import com.google.android.exoplayer2.upstream.HttpUtil;
+import com.google.android.exoplayer2.upstream.TransferListener;
+import com.google.android.exoplayer2.util.Log;
+import com.google.android.exoplayer2.util.Util;
+import com.google.common.base.Predicate;
+import com.google.common.net.HttpHeaders;
+import java.io.IOException;
+import java.io.InputStream;
+import java.io.InterruptedIOException;
+import java.io.OutputStream;
+import java.lang.reflect.Method;
+import java.net.HttpURLConnection;
+import java.net.MalformedURLException;
+import java.net.NoRouteToHostException;
+import java.net.Proxy;
+import java.net.URL;
+import java.util.Collections;
+import java.util.HashMap;
+import java.util.List;
+import java.util.Map;
+import java.util.zip.GZIPInputStream;
 
 /**
  * An {@link HttpDataSource} that uses Android's {@link HttpURLConnection}.
  *
  * <p>By default this implementation will not follow cross-protocol redirects (i.e. redirects from
  * HTTP to HTTPS or vice versa). Cross-protocol redirects can be enabled by passing {@code true} to
- * {@link com.google.android.exoplayer2.upstream.DefaultHttpDataSource.Factory#setAllowCrossProtocolRedirects(boolean)}.
+ * {@link DefaultHttpDataSource.Factory#setAllowCrossProtocolRedirects(boolean)}.
  *
  * <p>Note: HTTP request headers will be set using all parameters passed via (in order of decreasing
  * priority) the {@code dataSpec}, {@link #setRequestProperty} and the default properties that can
@@ -70,35 +64,27 @@ import java.util.zip.GZIPInputStream;
  */
 public class NoProxyDefaultHttpDataSource extends BaseDataSource implements HttpDataSource {
 
-    /**
-     * {@link DataSource.Factory} for {@link com.google.android.exoplayer2.upstream.DefaultHttpDataSource} instances.
-     */
+    /** {@link DataSource.Factory} for {@link DefaultHttpDataSource} instances. */
     public static final class Factory implements HttpDataSource.Factory {
 
         private final RequestProperties defaultRequestProperties;
 
-        @Nullable
-        private TransferListener transferListener;
-        @Nullable
-        private Predicate<String> contentTypePredicate;
-        @Nullable
-        private String userAgent;
+        @Nullable private TransferListener transferListener;
+        @Nullable private Predicate<String> contentTypePredicate;
+        @Nullable private String userAgent;
         private int connectTimeoutMs;
         private int readTimeoutMs;
         private boolean allowCrossProtocolRedirects;
+        private boolean keepPostFor302Redirects;
 
-        /**
-         * Creates an instance.
-         */
+        /** Creates an instance. */
         public Factory() {
             defaultRequestProperties = new RequestProperties();
             connectTimeoutMs = DEFAULT_CONNECT_TIMEOUT_MILLIS;
             readTimeoutMs = DEFAULT_READ_TIMEOUT_MILLIS;
         }
 
-        /**
-         * @deprecated Use {@link #setDefaultRequestProperties(Map)} instead.
-         */
+        /** @deprecated Use {@link #setDefaultRequestProperties(Map)} instead. */
         @Deprecated
         @Override
         public final RequestProperties getDefaultRequestProperties() {
@@ -106,7 +92,7 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
         }
 
         @Override
-        public Factory setDefaultRequestProperties(Map<String, String> defaultRequestProperties) {
+        public final Factory setDefaultRequestProperties(Map<String, String> defaultRequestProperties) {
             this.defaultRequestProperties.clearAndSet(defaultRequestProperties);
             return this;
         }
@@ -118,7 +104,7 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
          * platform to be used.
          *
          * @param userAgent The user agent that will be used, or {@code null} to use the default user
-         *                  agent of the underlying platform.
+         *     agent of the underlying platform.
          * @return This factory.
          */
         public Factory setUserAgent(@Nullable String userAgent) {
@@ -129,7 +115,6 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
         /**
          * Sets the connect timeout, in milliseconds.
          *
-         * <p>The default is {@link com.google.android.exoplayer2.upstream.DefaultHttpDataSource#DEFAULT_CONNECT_TIMEOUT_MILLIS}.
          *
          * @param connectTimeoutMs The connect timeout, in milliseconds, that will be used.
          * @return This factory.
@@ -142,7 +127,6 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
         /**
          * Sets the read timeout, in milliseconds.
          *
-         * <p>The default is {@link com.google.android.exoplayer2.upstream.DefaultHttpDataSource#DEFAULT_READ_TIMEOUT_MILLIS}.
          *
          * @param readTimeoutMs The connect timeout, in milliseconds, that will be used.
          * @return This factory.
@@ -168,12 +152,12 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
         /**
          * Sets a content type {@link Predicate}. If a content type is rejected by the predicate then a
          * {@link HttpDataSource.InvalidContentTypeException} is thrown from {@link
-         * com.google.android.exoplayer2.upstream.DefaultHttpDataSource#open(DataSpec)}.
+         * DefaultHttpDataSource#open(DataSpec)}.
          *
          * <p>The default is {@code null}.
          *
          * @param contentTypePredicate The content type {@link Predicate}, or {@code null} to clear a
-         *                             predicate that was previously set.
+         *     predicate that was previously set.
          * @return This factory.
          */
         public Factory setContentTypePredicate(@Nullable Predicate<String> contentTypePredicate) {
@@ -196,6 +180,15 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
             return this;
         }
 
+        /**
+         * Sets whether we should keep the POST method and body when we have HTTP 302 redirects for a
+         * POST request.
+         */
+        public Factory setKeepPostFor302Redirects(boolean keepPostFor302Redirects) {
+            this.keepPostFor302Redirects = keepPostFor302Redirects;
+            return this;
+        }
+
         @Override
         public NoProxyDefaultHttpDataSource createDataSource() {
             NoProxyDefaultHttpDataSource dataSource =
@@ -205,7 +198,8 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
                             readTimeoutMs,
                             allowCrossProtocolRedirects,
                             defaultRequestProperties,
-                            contentTypePredicate);
+                            contentTypePredicate,
+                            keepPostFor302Redirects);
             if (transferListener != null) {
                 dataSource.addTransferListener(transferListener);
             }
@@ -213,13 +207,9 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
         }
     }
 
-    /**
-     * The default connection timeout, in milliseconds.
-     */
+    /** The default connection timeout, in milliseconds. */
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 8 * 1000;
-    /**
-     * The default read timeout, in milliseconds.
-     */
+    /** The default read timeout, in milliseconds. */
     public static final int DEFAULT_READ_TIMEOUT_MILLIS = 8 * 1000;
 
     private static final String TAG = "DefaultHttpDataSource";
@@ -231,46 +221,35 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
     private final boolean allowCrossProtocolRedirects;
     private final int connectTimeoutMillis;
     private final int readTimeoutMillis;
-    @Nullable
-    private final String userAgent;
-    @Nullable
-    private final RequestProperties defaultRequestProperties;
+    @Nullable private final String userAgent;
+    @Nullable private final RequestProperties defaultRequestProperties;
     private final RequestProperties requestProperties;
+    private final boolean keepPostFor302Redirects;
 
-    @Nullable
-    private Predicate<String> contentTypePredicate;
-    @Nullable
-    private DataSpec dataSpec;
-    @Nullable
-    private HttpURLConnection connection;
-    @Nullable
-    private InputStream inputStream;
+    @Nullable private Predicate<String> contentTypePredicate;
+    @Nullable private DataSpec dataSpec;
+    @Nullable private HttpURLConnection connection;
+    @Nullable private InputStream inputStream;
     private boolean opened;
     private int responseCode;
     private long bytesToRead;
     private long bytesRead;
 
-    /**
-     * @deprecated Use {@link com.google.android.exoplayer2.upstream.DefaultHttpDataSource.Factory} instead.
-     */
+    /** @deprecated Use {@link DefaultHttpDataSource.Factory} instead. */
     @SuppressWarnings("deprecation")
     @Deprecated
     public NoProxyDefaultHttpDataSource() {
         this(/* userAgent= */ null, DEFAULT_CONNECT_TIMEOUT_MILLIS, DEFAULT_READ_TIMEOUT_MILLIS);
     }
 
-    /**
-     * @deprecated Use {@link com.google.android.exoplayer2.upstream.DefaultHttpDataSource.Factory} instead.
-     */
+    /** @deprecated Use {@link DefaultHttpDataSource.Factory} instead. */
     @SuppressWarnings("deprecation")
     @Deprecated
     public NoProxyDefaultHttpDataSource(@Nullable String userAgent) {
         this(userAgent, DEFAULT_CONNECT_TIMEOUT_MILLIS, DEFAULT_READ_TIMEOUT_MILLIS);
     }
 
-    /**
-     * @deprecated Use {@link com.google.android.exoplayer2.upstream.DefaultHttpDataSource.Factory} instead.
-     */
+    /** @deprecated Use {@link DefaultHttpDataSource.Factory} instead. */
     @SuppressWarnings("deprecation")
     @Deprecated
     public NoProxyDefaultHttpDataSource(
@@ -283,9 +262,7 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
                 /* defaultRequestProperties= */ null);
     }
 
-    /**
-     * @deprecated Use {@link com.google.android.exoplayer2.upstream.DefaultHttpDataSource.Factory} instead.
-     */
+    /** @deprecated Use {@link DefaultHttpDataSource.Factory} instead. */
     @Deprecated
     public NoProxyDefaultHttpDataSource(
             @Nullable String userAgent,
@@ -299,7 +276,8 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
                 readTimeoutMillis,
                 allowCrossProtocolRedirects,
                 defaultRequestProperties,
-                /* contentTypePredicate= */ null);
+                /* contentTypePredicate= */ null,
+                /* keepPostFor302Redirects= */ false);
     }
 
     private NoProxyDefaultHttpDataSource(
@@ -308,7 +286,8 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
             int readTimeoutMillis,
             boolean allowCrossProtocolRedirects,
             @Nullable RequestProperties defaultRequestProperties,
-            @Nullable Predicate<String> contentTypePredicate) {
+            @Nullable Predicate<String> contentTypePredicate,
+            boolean keepPostFor302Redirects) {
         super(/* isNetwork= */ true);
         this.userAgent = userAgent;
         this.connectTimeoutMillis = connectTimeoutMillis;
@@ -317,11 +296,12 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
         this.defaultRequestProperties = defaultRequestProperties;
         this.contentTypePredicate = contentTypePredicate;
         this.requestProperties = new RequestProperties();
+        this.keepPostFor302Redirects = keepPostFor302Redirects;
     }
 
     /**
-     * @deprecated Use {@link com.google.android.exoplayer2.upstream.DefaultHttpDataSource.Factory#setContentTypePredicate(Predicate)}
-     * instead.
+     * @deprecated Use {@link DefaultHttpDataSource.Factory#setContentTypePredicate(Predicate)}
+     *     instead.
      */
     @Deprecated
     public void setContentTypePredicate(@Nullable Predicate<String> contentTypePredicate) {
@@ -362,9 +342,7 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
         requestProperties.clear();
     }
 
-    /**
-     * Opens the source to read the specified data.
-     */
+    /** Opens the source to read the specified data. */
     @Override
     public long open(DataSpec dataSpec) throws HttpDataSourceException {
         this.dataSpec = dataSpec;
@@ -372,27 +350,17 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
         bytesToRead = 0;
         transferInitializing(dataSpec);
 
-        try {
-            connection = makeConnection(dataSpec);
-        } catch (IOException e) {
-            @Nullable String message = e.getMessage();
-            if (message != null
-                    && Ascii.toLowerCase(message).matches("cleartext http traffic.*not permitted.*")) {
-                throw new CleartextNotPermittedException(e, dataSpec);
-            }
-            throw new HttpDataSourceException(
-                    "Unable to connect", e, dataSpec, HttpDataSourceException.TYPE_OPEN);
-        }
-
-        HttpURLConnection connection = this.connection;
         String responseMessage;
+        HttpURLConnection connection;
         try {
+            this.connection = makeConnection(dataSpec);
+            connection = this.connection;
             responseCode = connection.getResponseCode();
             responseMessage = connection.getResponseMessage();
         } catch (IOException e) {
             closeConnectionQuietly();
-            throw new HttpDataSourceException(
-                    "Unable to connect", e, dataSpec, HttpDataSourceException.TYPE_OPEN);
+            throw HttpDataSourceException.createForIOException(
+                    e, dataSpec, HttpDataSourceException.TYPE_OPEN);
         }
 
         // Check for a valid response code.
@@ -417,13 +385,13 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
                 errorResponseBody = Util.EMPTY_BYTE_ARRAY;
             }
             closeConnectionQuietly();
-            InvalidResponseCodeException exception =
-                    new InvalidResponseCodeException(
-                            responseCode, responseMessage, headers, dataSpec, errorResponseBody);
-            if (responseCode == 416) {
-                exception.initCause(new DataSourceException(DataSourceException.POSITION_OUT_OF_RANGE));
-            }
-            throw exception;
+            @Nullable
+            IOException cause =
+                    responseCode == 416
+                            ? new DataSourceException(PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE)
+                            : null;
+            throw new InvalidResponseCodeException(
+                    responseCode, responseMessage, cause, headers, dataSpec, errorResponseBody);
         }
 
         // Check for a valid content type.
@@ -448,8 +416,8 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
                         HttpUtil.getContentLength(
                                 connection.getHeaderField(HttpHeaders.CONTENT_LENGTH),
                                 connection.getHeaderField(HttpHeaders.CONTENT_RANGE));
-                bytesToRead = contentLength != C.LENGTH_UNSET ? (contentLength - bytesToSkip)
-                        : C.LENGTH_UNSET;
+                bytesToRead =
+                        contentLength != C.LENGTH_UNSET ? (contentLength - bytesToSkip) : C.LENGTH_UNSET;
             }
         } else {
             // Gzip is enabled. If the server opts to use gzip then the content length in the response
@@ -465,30 +433,40 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
             }
         } catch (IOException e) {
             closeConnectionQuietly();
-            throw new HttpDataSourceException(e, dataSpec, HttpDataSourceException.TYPE_OPEN);
+            throw new HttpDataSourceException(
+                    e,
+                    dataSpec,
+                    PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+                    HttpDataSourceException.TYPE_OPEN);
         }
 
         opened = true;
         transferStarted(dataSpec);
 
         try {
-            if (!skipFully(bytesToSkip)) {
-                throw new DataSourceException(DataSourceException.POSITION_OUT_OF_RANGE);
-            }
+            skipFully(bytesToSkip, dataSpec);
         } catch (IOException e) {
             closeConnectionQuietly();
-            throw new HttpDataSourceException(e, dataSpec, HttpDataSourceException.TYPE_OPEN);
+
+            if (e instanceof HttpDataSourceException) {
+                throw (HttpDataSourceException) e;
+            }
+            throw new HttpDataSourceException(
+                    e,
+                    dataSpec,
+                    PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+                    HttpDataSourceException.TYPE_OPEN);
         }
 
         return bytesToRead;
     }
 
     @Override
-    public int read(byte[] buffer, int offset, int readLength) throws HttpDataSourceException {
+    public int read(byte[] buffer, int offset, int length) throws HttpDataSourceException {
         try {
-            return readInternal(buffer, offset, readLength);
+            return readInternal(buffer, offset, length);
         } catch (IOException e) {
-            throw new HttpDataSourceException(
+            throw HttpDataSourceException.createForIOException(
                     e, castNonNull(dataSpec), HttpDataSourceException.TYPE_READ);
         }
     }
@@ -505,7 +483,10 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
                     inputStream.close();
                 } catch (IOException e) {
                     throw new HttpDataSourceException(
-                            e, castNonNull(dataSpec), HttpDataSourceException.TYPE_CLOSE);
+                            e,
+                            castNonNull(dataSpec),
+                            PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+                            HttpDataSourceException.TYPE_CLOSE);
                 }
             }
         } finally {
@@ -518,18 +499,16 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
         }
     }
 
-    /**
-     * Establishes a connection, following redirects to do so where permitted.
-     */
+    /** Establishes a connection, following redirects to do so where permitted. */
     private HttpURLConnection makeConnection(DataSpec dataSpec) throws IOException {
         URL url = new URL(dataSpec.uri.toString());
-        @DataSpec.HttpMethod int httpMethod = dataSpec.httpMethod;
+        @HttpMethod int httpMethod = dataSpec.httpMethod;
         @Nullable byte[] httpBody = dataSpec.httpBody;
         long position = dataSpec.position;
         long length = dataSpec.length;
         boolean allowGzip = dataSpec.isFlagSet(DataSpec.FLAG_ALLOW_GZIP);
 
-        if (!allowCrossProtocolRedirects) {
+        if (!allowCrossProtocolRedirects && !keepPostFor302Redirects) {
             // HttpURLConnection disallows cross-protocol redirects, but otherwise performs redirection
             // automatically. This is the behavior we want, so use it.
             return makeConnection(
@@ -543,7 +522,8 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
                     dataSpec.httpRequestHeaders);
         }
 
-        // We need to handle redirects ourselves to allow cross-protocol redirects.
+        // We need to handle redirects ourselves to allow cross-protocol redirects or to keep the POST
+        // request method for 302.
         int redirectCount = 0;
         while (redirectCount++ <= MAX_REDIRECTS) {
             HttpURLConnection connection =
@@ -566,41 +546,49 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
                     || responseCode == HTTP_STATUS_TEMPORARY_REDIRECT
                     || responseCode == HTTP_STATUS_PERMANENT_REDIRECT)) {
                 connection.disconnect();
-                url = handleRedirect(url, location);
+                url = handleRedirect(url, location, dataSpec);
             } else if (httpMethod == DataSpec.HTTP_METHOD_POST
                     && (responseCode == HttpURLConnection.HTTP_MULT_CHOICE
                     || responseCode == HttpURLConnection.HTTP_MOVED_PERM
                     || responseCode == HttpURLConnection.HTTP_MOVED_TEMP
                     || responseCode == HttpURLConnection.HTTP_SEE_OTHER)) {
-                // POST request follows the redirect and is transformed into a GET request.
                 connection.disconnect();
-                httpMethod = DataSpec.HTTP_METHOD_GET;
-                httpBody = null;
-                url = handleRedirect(url, location);
+                boolean shouldKeepPost =
+                        keepPostFor302Redirects && responseCode == HttpURLConnection.HTTP_MOVED_TEMP;
+                if (!shouldKeepPost) {
+                    // POST request follows the redirect and is transformed into a GET request.
+                    httpMethod = DataSpec.HTTP_METHOD_GET;
+                    httpBody = null;
+                }
+                url = handleRedirect(url, location, dataSpec);
             } else {
                 return connection;
             }
         }
 
         // If we get here we've been redirected more times than are permitted.
-        throw new NoRouteToHostException("Too many redirects: " + redirectCount);
+        throw new HttpDataSourceException(
+                new NoRouteToHostException("Too many redirects: " + redirectCount),
+                dataSpec,
+                PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                HttpDataSourceException.TYPE_OPEN);
     }
 
     /**
      * Configures a connection and opens it.
      *
-     * @param url               The url to connect to.
-     * @param httpMethod        The http method.
-     * @param httpBody          The body data, or {@code null} if not required.
-     * @param position          The byte offset of the requested data.
-     * @param length            The length of the requested data, or {@link C#LENGTH_UNSET}.
-     * @param allowGzip         Whether to allow the use of gzip.
-     * @param followRedirects   Whether to follow redirects.
+     * @param url The url to connect to.
+     * @param httpMethod The http method.
+     * @param httpBody The body data, or {@code null} if not required.
+     * @param position The byte offset of the requested data.
+     * @param length The length of the requested data, or {@link C#LENGTH_UNSET}.
+     * @param allowGzip Whether to allow the use of gzip.
+     * @param followRedirects Whether to follow redirects.
      * @param requestParameters parameters (HTTP headers) to include in request.
      */
     private HttpURLConnection makeConnection(
             URL url,
-            @DataSpec.HttpMethod int httpMethod,
+            @HttpMethod int httpMethod,
             @Nullable byte[] httpBody,
             long position,
             long length,
@@ -647,9 +635,7 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
         return connection;
     }
 
-    /**
-     * Creates an {@link HttpURLConnection} that is connected with the {@code url}.
-     */
+    /** Creates an {@link HttpURLConnection} that is connected with the {@code url}. */
     @VisibleForTesting
     /* package */ HttpURLConnection openConnection(URL url) throws IOException {
         return (HttpURLConnection) url.openConnection(Proxy.NO_PROXY);
@@ -659,28 +645,52 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
      * Handles a redirect.
      *
      * @param originalUrl The original URL.
-     * @param location    The Location header in the response. May be {@code null}.
+     * @param location The Location header in the response. May be {@code null}.
+     * @param dataSpec The {@link DataSpec}.
      * @return The next URL.
-     * @throws IOException If redirection isn't possible.
+     * @throws HttpDataSourceException If redirection isn't possible.
      */
-    private static URL handleRedirect(URL originalUrl, @Nullable String location) throws IOException {
+    private URL handleRedirect(URL originalUrl, @Nullable String location, DataSpec dataSpec)
+            throws HttpDataSourceException {
         if (location == null) {
-            throw new ProtocolException("Null location redirect");
+            throw new HttpDataSourceException(
+                    "Null location redirect",
+                    dataSpec,
+                    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                    HttpDataSourceException.TYPE_OPEN);
         }
         // Form the new url.
-        URL url = new URL(originalUrl, location);
+        URL url;
+        try {
+            url = new URL(originalUrl, location);
+        } catch (MalformedURLException e) {
+            throw new HttpDataSourceException(
+                    e,
+                    dataSpec,
+                    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                    HttpDataSourceException.TYPE_OPEN);
+        }
+
         // Check that the protocol of the new url is supported.
         String protocol = url.getProtocol();
         if (!"https".equals(protocol) && !"http".equals(protocol)) {
-            throw new ProtocolException("Unsupported protocol redirect: " + protocol);
+            throw new HttpDataSourceException(
+                    "Unsupported protocol redirect: " + protocol,
+                    dataSpec,
+                    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                    HttpDataSourceException.TYPE_OPEN);
         }
-        // Currently this method is only called if allowCrossProtocolRedirects is true, and so the code
-        // below isn't required. If we ever decide to handle redirects ourselves when cross-protocol
-        // redirects are disabled, we'll need to uncomment this block of code.
-        // if (!allowCrossProtocolRedirects && !protocol.equals(originalUrl.getProtocol())) {
-        //   throw new ProtocolException("Disallowed cross-protocol redirect ("
-        //       + originalUrl.getProtocol() + " to " + protocol + ")");
-        // }
+        if (!allowCrossProtocolRedirects && !protocol.equals(originalUrl.getProtocol())) {
+            throw new HttpDataSourceException(
+                    "Disallowed cross-protocol redirect ("
+                            + originalUrl.getProtocol()
+                            + " to "
+                            + protocol
+                            + ")",
+                    dataSpec,
+                    PlaybackException.ERROR_CODE_IO_NETWORK_CONNECTION_FAILED,
+                    HttpDataSourceException.TYPE_OPEN);
+        }
         return url;
     }
 
@@ -688,43 +698,48 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
      * Attempts to skip the specified number of bytes in full.
      *
      * @param bytesToSkip The number of bytes to skip.
-     * @return Whether the bytes were skipped in full. If {@code false} then the data ended before the
-     * specified number of bytes were skipped. Always {@code true} if {@code bytesToSkip == 0}.
-     * @throws InterruptedIOException If the thread is interrupted during the operation.
-     * @throws IOException            If an error occurs reading from the source.
+     * @param dataSpec The {@link DataSpec}.
+     * @throws IOException If the thread is interrupted during the operation, or if the data ended
+     *     before skipping the specified number of bytes.
      */
-    private boolean skipFully(long bytesToSkip) throws IOException {
+    private void skipFully(long bytesToSkip, DataSpec dataSpec) throws IOException {
         if (bytesToSkip == 0) {
-            return true;
+            return;
         }
         byte[] skipBuffer = new byte[4096];
         while (bytesToSkip > 0) {
             int readLength = (int) min(bytesToSkip, skipBuffer.length);
             int read = castNonNull(inputStream).read(skipBuffer, 0, readLength);
             if (Thread.currentThread().isInterrupted()) {
-                throw new InterruptedIOException();
+                throw new HttpDataSourceException(
+                        new InterruptedIOException(),
+                        dataSpec,
+                        PlaybackException.ERROR_CODE_IO_UNSPECIFIED,
+                        HttpDataSourceException.TYPE_OPEN);
             }
             if (read == -1) {
-                return false;
+                throw new HttpDataSourceException(
+                        dataSpec,
+                        PlaybackException.ERROR_CODE_IO_READ_POSITION_OUT_OF_RANGE,
+                        HttpDataSourceException.TYPE_OPEN);
             }
             bytesToSkip -= read;
             bytesTransferred(read);
         }
-        return true;
     }
 
     /**
-     * Reads up to {@code length} bytes of data and stores them into {@code buffer}, starting at
-     * index {@code offset}.
-     * <p>
-     * This method blocks until at least one byte of data can be read, the end of the opened range is
-     * detected, or an exception is thrown.
+     * Reads up to {@code length} bytes of data and stores them into {@code buffer}, starting at index
+     * {@code offset}.
      *
-     * @param buffer     The buffer into which the read data should be stored.
-     * @param offset     The start offset into {@code buffer} at which data should be written.
+     * <p>This method blocks until at least one byte of data can be read, the end of the opened range
+     * is detected, or an exception is thrown.
+     *
+     * @param buffer The buffer into which the read data should be stored.
+     * @param offset The start offset into {@code buffer} at which data should be written.
      * @param readLength The maximum number of bytes to read.
      * @return The number of bytes read, or {@link C#RESULT_END_OF_INPUT} if the end of the opened
-     * range is reached.
+     *     range is reached.
      * @throws IOException If an error occurs reading from the source.
      */
     private int readInternal(byte[] buffer, int offset, int readLength) throws IOException {
@@ -756,9 +771,9 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
      * unexpected end of input, working around this issue. On other platform API levels, the method
      * does nothing.
      *
-     * @param connection     The connection whose {@link InputStream} should be terminated.
+     * @param connection The connection whose {@link InputStream} should be terminated.
      * @param bytesRemaining The number of bytes remaining to be read from the input stream if its
-     *                       length is known. {@link C#LENGTH_UNSET} otherwise.
+     *     length is known. {@link C#LENGTH_UNSET} otherwise.
      */
     private static void maybeTerminateInputStream(
             @Nullable HttpURLConnection connection, long bytesRemaining) {
@@ -795,9 +810,7 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
         }
     }
 
-    /**
-     * Closes the current connection quietly, if there is one.
-     */
+    /** Closes the current connection quietly, if there is one. */
     private void closeConnectionQuietly() {
         if (connection != null) {
             try {
@@ -812,10 +825,5 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
     private static boolean isCompressed(HttpURLConnection connection) {
         String contentEncoding = connection.getHeaderField("Content-Encoding");
         return "gzip".equalsIgnoreCase(contentEncoding);
-    }
-
-    @Nullable
-    public HttpURLConnection getConnection() {
-        return connection;
     }
 }
