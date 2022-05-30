@@ -16,7 +16,7 @@ import java.util.ArrayList;
  * <p>This class is not thread-safe. All calls must be done on the same thread or synchronized
  * externally.
  */
-final class QueuingEventSink implements EventChannel.EventSink {
+public final class QueuingEventSink implements EventChannel.EventSink {
   private EventChannel.EventSink delegate;
   private ArrayList<Object> eventQueue = new ArrayList<>();
   private boolean done = false;

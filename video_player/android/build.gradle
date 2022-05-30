@@ -25,6 +25,7 @@ project.getTasks().withType(JavaCompile){
 }
 
 apply plugin: 'com.android.library'
+apply plugin: 'kotlin-android'
 
 android {
     compileSdkVersion 30
@@ -44,6 +45,7 @@ android {
 
     dependencies {
         implementation 'com.google.android.exoplayer:exoplayer-core:2.15.0'
+        implementation 'com.google.android.exoplayer:exoplayer-ui:2.15.0'
         implementation 'com.google.android.exoplayer:exoplayer-hls:2.15.0'
         implementation 'com.google.android.exoplayer:exoplayer-dash:2.15.0'
         implementation 'com.google.android.exoplayer:exoplayer-smoothstreaming:2.15.0'
@@ -63,4 +65,11 @@ android {
             }
         }
     }
+}
+dependencies {
+//    implementation "androidx.core:core-ktx:+"
+    implementation "org.jetbrains.kotlin:kotlin-stdlib-jdk7:$kotlin_version"
+}
+repositories {
+    mavenCentral()
 }

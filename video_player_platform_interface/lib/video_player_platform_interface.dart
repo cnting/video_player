@@ -6,6 +6,7 @@ import 'package:flutter/foundation.dart';
 import 'package:flutter/widgets.dart';
 import 'package:plugin_platform_interface/plugin_platform_interface.dart';
 
+import 'download.dart';
 import 'method_channel_video_player.dart';
 
 /// The interface that implementations of video_player must implement.
@@ -102,6 +103,14 @@ abstract class VideoPlayerPlatform extends PlatformInterface {
   /// Sets the audio mode to mix with other sources
   Future<void> setMixWithOthers(bool mixWithOthers) {
     throw UnimplementedError('setMixWithOthers() has not been implemented.');
+  }
+
+  Future<void> download(int textureId, int trackIndex, String name) {
+    throw UnimplementedError('download() has not been implemented.');
+  }
+
+  Future<void> removeDownload(int textureId) {
+    throw UnimplementedError('removeDownload() has not been implemented.');
   }
 }
 
@@ -200,12 +209,11 @@ class VideoEvent {
   ///
   /// Depending on the [eventType], the [duration], [size] and [buffered]
   /// arguments can be null.
-  VideoEvent({
-    required this.eventType,
-    this.duration,
-    this.size,
-    this.buffered,
-  });
+  VideoEvent({required this.eventType, this.duration, this.size, this.buffered, this.downloadState});
+
+  factory VideoEvent.forDownload(int state, double? progress) {
+    return VideoEvent(eventType: VideoEventType.downloadState, downloadState: DownloadState(state, progress: progress));
+  }
 
   /// The type of the event.
   final VideoEventType eventType;
@@ -225,6 +233,8 @@ class VideoEvent {
   /// Only used if [eventType] is [VideoEventType.bufferingUpdate].
   final List<DurationRange>? buffered;
 
+  final DownloadState? downloadState;
+
   @override
   bool operator ==(Object other) {
     return identical(this, other) ||
@@ -237,11 +247,7 @@ class VideoEvent {
   }
 
   @override
-  int get hashCode =>
-      eventType.hashCode ^
-      duration.hashCode ^
-      size.hashCode ^
-      buffered.hashCode;
+  int get hashCode => eventType.hashCode ^ duration.hashCode ^ size.hashCode ^ buffered.hashCode;
 }
 
 /// Type of the event.
@@ -266,6 +272,7 @@ enum VideoEventType {
 
   /// An unknown event has been received.
   unknown,
+  downloadState
 }
 
 /// Describes a discrete segment of time within a video using a [start] and
@@ -318,10 +325,7 @@ class DurationRange {
   @override
   bool operator ==(Object other) =>
       identical(this, other) ||
-      other is DurationRange &&
-          runtimeType == other.runtimeType &&
-          start == other.start &&
-          end == other.end;
+      other is DurationRange && runtimeType == other.runtimeType && start == other.start && end == other.end;
 
   @override
   int get hashCode => start.hashCode ^ end.hashCode;
@@ -338,4 +342,16 @@ class VideoPlayerOptions {
 
   /// set additional optional player settings
   VideoPlayerOptions({this.mixWithOthers = false});
+}
+
+class DownloadState {
+  static const int UNDOWNLOAD = 0;
+  static const int DOWNLOADING = 1;
+  static const int COMPLETED = 2;
+  static const int ERROR = 3;
+
+  DownloadState(this.state, {this.progress = 0});
+
+  final int state;
+  final double? progress;
 }

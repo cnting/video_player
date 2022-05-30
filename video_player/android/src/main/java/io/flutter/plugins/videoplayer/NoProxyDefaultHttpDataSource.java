@@ -56,7 +56,7 @@ import java.util.zip.GZIPInputStream;
  *
  * <p>By default this implementation will not follow cross-protocol redirects (i.e. redirects from
  * HTTP to HTTPS or vice versa). Cross-protocol redirects can be enabled by passing {@code true} to
- * {@link DefaultHttpDataSource.Factory#setAllowCrossProtocolRedirects(boolean)}.
+ * {@link NoProxyDefaultHttpDataSource.Factory#setAllowCrossProtocolRedirects(boolean)}.
  *
  * <p>Note: HTTP request headers will be set using all parameters passed via (in order of decreasing
  * priority) the {@code dataSpec}, {@link #setRequestProperty} and the default properties that can
@@ -64,7 +64,7 @@ import java.util.zip.GZIPInputStream;
  */
 public class NoProxyDefaultHttpDataSource extends BaseDataSource implements HttpDataSource {
 
-    /** {@link DataSource.Factory} for {@link DefaultHttpDataSource} instances. */
+    /** {@link NoProxyDefaultHttpDataSource.Factory} for {@link NoProxyDefaultHttpDataSource} instances. */
     public static final class Factory implements HttpDataSource.Factory {
 
         private final RequestProperties defaultRequestProperties;
@@ -152,7 +152,7 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
         /**
          * Sets a content type {@link Predicate}. If a content type is rejected by the predicate then a
          * {@link HttpDataSource.InvalidContentTypeException} is thrown from {@link
-         * DefaultHttpDataSource#open(DataSpec)}.
+         * NoProxyDefaultHttpDataSource#open(DataSpec)}.
          *
          * <p>The default is {@code null}.
          *
@@ -170,7 +170,7 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
          *
          * <p>The default is {@code null}.
          *
-         * <p>See {@link DataSource#addTransferListener(TransferListener)}.
+         * <p>See {@link NoProxyDefaultHttpDataSource#addTransferListener(TransferListener)}.
          *
          * @param transferListener The listener that will be used.
          * @return This factory.
@@ -235,21 +235,21 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
     private long bytesToRead;
     private long bytesRead;
 
-    /** @deprecated Use {@link DefaultHttpDataSource.Factory} instead. */
+    /** @deprecated Use {@link NoProxyDefaultHttpDataSource.Factory} instead. */
     @SuppressWarnings("deprecation")
     @Deprecated
     public NoProxyDefaultHttpDataSource() {
         this(/* userAgent= */ null, DEFAULT_CONNECT_TIMEOUT_MILLIS, DEFAULT_READ_TIMEOUT_MILLIS);
     }
 
-    /** @deprecated Use {@link DefaultHttpDataSource.Factory} instead. */
+    /** @deprecated Use {@link NoProxyDefaultHttpDataSource.Factory} instead. */
     @SuppressWarnings("deprecation")
     @Deprecated
     public NoProxyDefaultHttpDataSource(@Nullable String userAgent) {
         this(userAgent, DEFAULT_CONNECT_TIMEOUT_MILLIS, DEFAULT_READ_TIMEOUT_MILLIS);
     }
 
-    /** @deprecated Use {@link DefaultHttpDataSource.Factory} instead. */
+    /** @deprecated Use {@link NoProxyDefaultHttpDataSource.Factory} instead. */
     @SuppressWarnings("deprecation")
     @Deprecated
     public NoProxyDefaultHttpDataSource(
@@ -262,7 +262,7 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
                 /* defaultRequestProperties= */ null);
     }
 
-    /** @deprecated Use {@link DefaultHttpDataSource.Factory} instead. */
+    /** @deprecated Use {@link NoProxyDefaultHttpDataSource.Factory} instead. */
     @Deprecated
     public NoProxyDefaultHttpDataSource(
             @Nullable String userAgent,
@@ -300,7 +300,7 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
     }
 
     /**
-     * @deprecated Use {@link DefaultHttpDataSource.Factory#setContentTypePredicate(Predicate)}
+     * @deprecated Use {@link NoProxyDefaultHttpDataSource.Factory#setContentTypePredicate(Predicate)}
      *     instead.
      */
     @Deprecated

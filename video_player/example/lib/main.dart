@@ -86,13 +86,10 @@ class _ButterFlyAssetVideoInList extends StatelessWidget {
                 leading: Icon(Icons.cake),
                 title: Text("Video video"),
               ),
-              Stack(
-                  alignment: FractionalOffset.bottomRight +
-                      const FractionalOffset(-0.1, -0.1),
-                  children: <Widget>[
-                    _ButterFlyAssetVideo(),
-                    Image.asset('assets/flutter-mark-square-64.png'),
-                  ]),
+              Stack(alignment: FractionalOffset.bottomRight + const FractionalOffset(-0.1, -0.1), children: <Widget>[
+                _ButterFlyAssetVideo(),
+                Image.asset('assets/flutter-mark-square-64.png'),
+              ]),
             ],
           ),
         ])),
@@ -209,17 +206,17 @@ class _BumbleBeeRemoteVideoState extends State<_BumbleBeeRemoteVideo> {
   late VideoPlayerController _controller;
 
   Future<ClosedCaptionFile> _loadCaptions() async {
-    final String fileContents = await DefaultAssetBundle.of(context)
-        .loadString('assets/bumble_bee_captions.vtt');
-    return WebVTTCaptionFile(
-        fileContents); // For vtt files, use WebVTTCaptionFile
+    final String fileContents = await DefaultAssetBundle.of(context).loadString('assets/bumble_bee_captions.vtt');
+    return WebVTTCaptionFile(fileContents); // For vtt files, use WebVTTCaptionFile
   }
 
   @override
   void initState() {
     super.initState();
     _controller = VideoPlayerController.network(
-      'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
+      // 'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
+      // "http://res.uquabc.com/video/encrpyt_hls/butterfly.m3u8",
+      "https://storage.googleapis.com/shaka-demo-assets/angel-one-hls/hls.m3u8",
       closedCaptionFile: _loadCaptions(),
       videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
     );
@@ -259,6 +256,7 @@ class _BumbleBeeRemoteVideoState extends State<_BumbleBeeRemoteVideo> {
               ),
             ),
           ),
+          CacheWidget(_controller)
         ],
       ),
     );
@@ -266,8 +264,7 @@ class _BumbleBeeRemoteVideoState extends State<_BumbleBeeRemoteVideo> {
 }
 
 class _ControlsOverlay extends StatelessWidget {
-  const _ControlsOverlay({Key? key, required this.controller})
-      : super(key: key);
+  const _ControlsOverlay({Key? key, required this.controller}) : super(key: key);
 
   static const _exampleCaptionOffsets = [
     Duration(seconds: -10),
@@ -395,8 +392,7 @@ class _PlayerVideoAndPopPageState extends State<_PlayerVideoAndPopPage> {
   void initState() {
     super.initState();
 
-    _videoPlayerController =
-        VideoPlayerController.asset('assets/Butterfly-209.mp4');
+    _videoPlayerController = VideoPlayerController.asset('assets/Butterfly-209.mp4');
     _videoPlayerController.addListener(() {
       if (startedPlaying && !_videoPlayerController.value.isPlaying) {
         Navigator.pop(context);
@@ -438,4 +434,85 @@ class _PlayerVideoAndPopPageState extends State<_PlayerVideoAndPopPage> {
       ),
     );
   }
+}
+
+class CacheWidget extends StatelessWidget {
+  VideoPlayerController videoPlayerController;
+
+  CacheWidget(this.videoPlayerController);
+
+  @override
+  Widget build(BuildContext context) {
+    return ValueListenableBuilder(
+      valueListenable: videoPlayerController.downloadNotifier,
+      builder: (context, DownloadState? downloadState, Widget? child) {
+        if (downloadState?.state == DownloadState.DOWNLOADING) {
+          return _downloadingWidget(downloadState!);
+        } else if (downloadState?.state == DownloadState.COMPLETED) {
+          return _downloadComplete(videoPlayerController, downloadState!);
+        } else if (downloadState?.state == DownloadState.ERROR) {
+          return _downloadError(videoPlayerController, downloadState!);
+        } else {
+          return _noDownloadWidget(videoPlayerController);
+        }
+      },
+    );
+  }
+}
+
+///下载中
+Widget _downloadingWidget(DownloadState downloadState) {
+  return Column(
+    children: <Widget>[
+      LinearProgressIndicator(
+        value: (downloadState.progress ?? 0) * 0.01,
+      )
+    ],
+  );
+}
+
+///下载完成
+Widget _downloadComplete(VideoPlayerController videoPlayerController, DownloadState downloadState) {
+  return Column(
+    children: [
+      Text('已缓存'),
+      TextButton.icon(
+          onPressed: () {
+            videoPlayerController.removeDownload();
+          },
+          icon: Icon(Icons.delete),
+          label: Text('删除缓存'))
+    ],
+  );
+}
+
+///下载error
+Widget _downloadError(VideoPlayerController videoPlayerController, DownloadState downloadState) {
+  return Column(
+    children: [
+      Text('出错啦'),
+      TextButton.icon(
+          onPressed: () {
+            videoPlayerController.removeDownload();
+          },
+          icon: Icon(Icons.delete),
+          label: Text('删除缓存'))
+    ],
+  );
+  return Text('出错啦');
+}
+
+Widget _noDownloadWidget(VideoPlayerController videoPlayerController) {
+  return Column(
+    children: [
+      Text('未缓存'),
+      TextButton.icon(
+          onPressed: () {
+            print('===>点击下载');
+            videoPlayerController.download("下载测试");
+          },
+          icon: Icon(Icons.download),
+          label: Text('开始缓存'))
+    ],
+  );
 }
