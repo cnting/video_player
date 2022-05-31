@@ -9,6 +9,7 @@ import static com.google.android.exoplayer2.Player.REPEAT_MODE_OFF;
 
 import android.content.Context;
 import android.net.Uri;
+import android.util.Log;
 import android.view.Surface;
 
 import com.google.android.exoplayer2.C;
@@ -98,6 +99,7 @@ final class VideoPlayer {
             dataSourceFactory = new DefaultDataSourceFactory(context, "ExoPlayer");
         }
 
+        //下载视频
         VideoDownloadManager videoDownloadManager = VideoDownloadManager.Companion.getInstance(context);
         videoDownloadHelper = new VideoDownloadHelper(context, videoDownloadManager, uri, renderersFactory, dataSourceFactory, eventSink);
         videoDownloadHelper.initDownloadState();
@@ -121,6 +123,7 @@ final class VideoPlayer {
             Uri uri, DataSource.Factory mediaDataSourceFactory, String formatHint, Context context) {
         if (videoDownloadHelper != null) {
             MediaSource downloadMediaSource = videoDownloadHelper.getDownloadMediaSource(uri);
+            Log.d("===>", "downloadMediaSource:" + downloadMediaSource);
             if (downloadMediaSource != null) {
                 return downloadMediaSource;
             }
@@ -309,7 +312,7 @@ final class VideoPlayer {
     }
 
     void download(String name) {
-        videoDownloadHelper.download(0,name);
+        videoDownloadHelper.download(0, name);
     }
 
     void removeDownload() {

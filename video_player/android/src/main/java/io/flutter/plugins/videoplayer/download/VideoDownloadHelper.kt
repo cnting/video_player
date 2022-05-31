@@ -56,17 +56,17 @@ class VideoDownloadHelper(
         event["event"] = "downloadState"
         when (download?.state ?: Download.STATE_QUEUED) {
             Download.STATE_COMPLETED -> {
-                event["state"] = GpDownloadState.COMPLETED
+                event["state"] = ZMDownloadState.COMPLETED
             }
             Download.STATE_DOWNLOADING -> {
-                event["state"] = GpDownloadState.DOWNLOADING
+                event["state"] = ZMDownloadState.DOWNLOADING
                 event["progress"] = download!!.percentDownloaded
             }
             Download.STATE_FAILED -> {
-                event["state"] = GpDownloadState.ERROR
+                event["state"] = ZMDownloadState.ERROR
             }
             else -> {
-                event["state"] = GpDownloadState.UNDOWNLOAD
+                event["state"] = ZMDownloadState.UNDOWNLOAD
             }
         }
         uiHandler.post {

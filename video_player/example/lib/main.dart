@@ -216,7 +216,8 @@ class _BumbleBeeRemoteVideoState extends State<_BumbleBeeRemoteVideo> {
     _controller = VideoPlayerController.network(
       // 'https://flutter.github.io/assets-for-api-docs/assets/videos/bee.mp4',
       // "http://res.uquabc.com/video/encrpyt_hls/butterfly.m3u8",
-      "https://storage.googleapis.com/shaka-demo-assets/angel-one-hls/hls.m3u8",
+      // "https://storage.googleapis.com/shaka-demo-assets/angel-one-hls/hls.m3u8",
+      "https://vedio-pro.iwordnet.com/9cfafb52be1941cbaf208f2c4fd8707a/video/ff0dece6c75e48a2a0e44fed9660f116-55f7f877238f5f53fd6f1677cfb4204f-video-sd.m3u8",
       closedCaptionFile: _loadCaptions(),
       videoPlayerOptions: VideoPlayerOptions(mixWithOthers: true),
     );

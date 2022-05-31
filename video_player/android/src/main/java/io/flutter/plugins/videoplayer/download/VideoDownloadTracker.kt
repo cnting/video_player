@@ -114,7 +114,7 @@ class VideoDownloadTracker(downloadManager: DownloadManager) {
     }
 }
 
-object GpDownloadState {
+object ZMDownloadState {
     const val UNDOWNLOAD = 0
     const val DOWNLOADING = 1
     const val COMPLETED = 2
