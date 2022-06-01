@@ -638,6 +638,7 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
     /** Creates an {@link HttpURLConnection} that is connected with the {@code url}. */
     @VisibleForTesting
     /* package */ HttpURLConnection openConnection(URL url) throws IOException {
+        Log.d("===>","url:"+url);
         return (HttpURLConnection) url.openConnection(Proxy.NO_PROXY);
     }
 

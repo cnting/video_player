@@ -5,7 +5,6 @@ import android.content.Context
 import android.net.Uri
 import android.os.Handler
 import android.os.Looper
-import android.util.Log
 import com.google.android.exoplayer2.C
 import com.google.android.exoplayer2.MediaItem
 import com.google.android.exoplayer2.RenderersFactory
@@ -79,9 +78,6 @@ class VideoDownloadHelper(
      * 下载指定分辨率视频，暂时只支持hls
      */
     fun download(trackIndex: Int, downloadNotificationName: String) {
-//        if (io.flutter.plugins.videoplayer.VideoPlayerPlugin.VideoPlayer.isFileOrAsset(dataSourceUri)) {
-//            return
-//        }
         when (Util.inferContentType(dataSourceUri)) {
             C.TYPE_HLS -> downloadHls(trackIndex, downloadNotificationName)
             C.TYPE_DASH, C.TYPE_OTHER, C.TYPE_SS -> {}
@@ -90,7 +86,6 @@ class VideoDownloadHelper(
     }
 
     private fun downloadHls(trackIndex: Int, downloadNotificationName: String) {
-        Log.d("===>", "正在下载 downloadHls")
         downloadHelper?.release()
         downloadHelper =
             DownloadHelper.forMediaItem(
@@ -198,7 +193,7 @@ class VideoDownloadHelper(
         if (download != null && download.state == Download.STATE_COMPLETED) {
             return DownloadHelper.createMediaSource(
                 download.request,
-                videoDownloadManager.localDataSourceFactory
+                videoDownloadManager.cacheDataSourceFactory
             )
         }
         return null

@@ -9,7 +9,6 @@ import static com.google.android.exoplayer2.Player.REPEAT_MODE_OFF;
 
 import android.content.Context;
 import android.net.Uri;
-import android.util.Log;
 import android.view.Surface;
 
 import com.google.android.exoplayer2.C;
@@ -22,6 +21,7 @@ import com.google.android.exoplayer2.Player;
 import com.google.android.exoplayer2.Player.Listener;
 import com.google.android.exoplayer2.RenderersFactory;
 import com.google.android.exoplayer2.SimpleExoPlayer;
+import com.google.android.exoplayer2.analytics.AnalyticsListener;
 import com.google.android.exoplayer2.audio.AudioAttributes;
 import com.google.android.exoplayer2.source.MediaSource;
 import com.google.android.exoplayer2.source.ProgressiveMediaSource;
@@ -32,8 +32,8 @@ import com.google.android.exoplayer2.source.smoothstreaming.DefaultSsChunkSource
 import com.google.android.exoplayer2.source.smoothstreaming.SsMediaSource;
 import com.google.android.exoplayer2.upstream.DataSource;
 import com.google.android.exoplayer2.upstream.DefaultDataSourceFactory;
-import com.google.android.exoplayer2.upstream.DefaultHttpDataSource;
 import com.google.android.exoplayer2.upstream.HttpDataSource;
+import com.google.android.exoplayer2.upstream.cache.CacheDataSource;
 import com.google.android.exoplayer2.util.Util;
 
 import java.util.Arrays;
@@ -78,29 +78,30 @@ final class VideoPlayer {
         this.eventChannel = eventChannel;
         this.textureEntry = textureEntry;
         this.options = options;
+        VideoDownloadManager videoDownloadManager = VideoDownloadManager.Companion.getInstance(context);
 
         RenderersFactory renderersFactory = new DefaultRenderersFactory(context);
-        exoPlayer = new SimpleExoPlayer.Builder(context, renderersFactory).build();
+        exoPlayer = new SimpleExoPlayer.Builder(context, renderersFactory)
+                .build();
 
         Uri uri = Uri.parse(dataSource);
 
         DataSource.Factory dataSourceFactory;
         if (isHTTP(uri)) {
-            HttpDataSource.Factory httpDataSourceFactory =
-                    new NoProxyDefaultHttpDataSource.Factory()
-                            .setUserAgent("ExoPlayer")
-                            .setAllowCrossProtocolRedirects(true);
-
+            //播放并缓存视频
+            CacheDataSource.Factory cacheDataSourceFactory = videoDownloadManager.getCacheDataSourceFactory();
             if (httpHeaders != null && !httpHeaders.isEmpty()) {
+                HttpDataSource.Factory httpDataSourceFactory = videoDownloadManager.getHttpDataSourceFactory();
                 httpDataSourceFactory.setDefaultRequestProperties(httpHeaders);
+                cacheDataSourceFactory.setUpstreamDataSourceFactory(httpDataSourceFactory);
             }
-            dataSourceFactory = httpDataSourceFactory;
+            dataSourceFactory = cacheDataSourceFactory;
+
         } else {
             dataSourceFactory = new DefaultDataSourceFactory(context, "ExoPlayer");
         }
 
-        //下载视频
-        VideoDownloadManager videoDownloadManager = VideoDownloadManager.Companion.getInstance(context);
+        //判断下载状态
         videoDownloadHelper = new VideoDownloadHelper(context, videoDownloadManager, uri, renderersFactory, dataSourceFactory, eventSink);
         videoDownloadHelper.initDownloadState();
 
@@ -121,13 +122,13 @@ final class VideoPlayer {
 
     private MediaSource buildMediaSource(
             Uri uri, DataSource.Factory mediaDataSourceFactory, String formatHint, Context context) {
-        if (videoDownloadHelper != null) {
-            MediaSource downloadMediaSource = videoDownloadHelper.getDownloadMediaSource(uri);
-            Log.d("===>", "downloadMediaSource:" + downloadMediaSource);
-            if (downloadMediaSource != null) {
-                return downloadMediaSource;
-            }
-        }
+        //判断是否已下载
+//        if (videoDownloadHelper != null) {
+//            MediaSource downloadMediaSource = videoDownloadHelper.getDownloadMediaSource(uri);
+//            if (downloadMediaSource != null) {
+//                return downloadMediaSource;
+//            }
+//        }
 
         int type;
         if (formatHint == null) {
@@ -164,6 +165,7 @@ final class VideoPlayer {
                         .createMediaSource(MediaItem.fromUri(uri));
             case C.TYPE_HLS:
                 return new HlsMediaSource.Factory(mediaDataSourceFactory)
+                        .setAllowChunklessPreparation(true)
                         .createMediaSource(MediaItem.fromUri(uri));
             case C.TYPE_OTHER:
                 return new ProgressiveMediaSource.Factory(mediaDataSourceFactory)
@@ -236,6 +238,8 @@ final class VideoPlayer {
                         }
                     }
                 });
+        exoPlayer.addAnalyticsListener(new AnalyticsListener() {
+        });
 
     }
 

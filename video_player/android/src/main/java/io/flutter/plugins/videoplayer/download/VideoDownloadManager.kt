@@ -2,7 +2,6 @@ package io.flutter.plugins.videoplayer
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.util.Log
 import com.google.android.exoplayer2.database.DatabaseProvider
 import com.google.android.exoplayer2.database.ExoDatabaseProvider
 import com.google.android.exoplayer2.offline.DefaultDownloadIndex
@@ -24,7 +23,6 @@ import java.util.concurrent.Executors
 class VideoDownloadManager private constructor(private val context: Context) {
 
     private val DOWNLOAD_CONTENT_DIRECTORY = "video_downloads"
-    private val userAgent = Util.getUserAgent(context, "ExoPlayerDemo")
 
     companion object {
         @SuppressLint("StaticFieldLeak")
@@ -38,17 +36,10 @@ class VideoDownloadManager private constructor(private val context: Context) {
 
 
     val downloadManager: DownloadManager by lazy {
-//        val downloadManager = DownloadManager(
-//            context,
-//            databaseProvider,
-//            downloadCache,
-//            dataSourceFactory,
-//            Executors.newFixedThreadPool(6)
-//        )
         val downloadManager = DownloadManager(
             context,
             DefaultDownloadIndex(databaseProvider),
-            DefaultDownloaderFactory(localDataSourceFactory, Executors.newFixedThreadPool(6))
+            DefaultDownloaderFactory(cacheDataSourceFactory, Executors.newFixedThreadPool(6))
         )
         downloadManager
     }
@@ -76,7 +67,7 @@ class VideoDownloadManager private constructor(private val context: Context) {
         directionality!!
     }
 
-    //必须要16位
+    //必须要16位  // TODO: 需要从flutter里传  
     private val SECRET_KEY = "secretkey1234567"
 
     private val downloadCache: Cache by lazy {
@@ -93,40 +84,30 @@ class VideoDownloadManager private constructor(private val context: Context) {
         downloadCache
     }
 
-    private val dataSourceFactory: HttpDataSource.Factory by lazy {
-        val factory = NoProxyDefaultHttpDataSource.Factory()
+    val httpDataSourceFactory: HttpDataSource.Factory by lazy {
+        //禁止抓包
+        val factory = NoProxyDefaultHttpDataSource.Factory()  // TODO: 改回来
+//        val factory = DefaultHttpDataSource.Factory()
+            .setUserAgent("ExoPlayer")
+            .setAllowCrossProtocolRedirects(true)
         factory
     }
 
-    val localDataSourceFactory: CacheDataSource.Factory by lazy {
-        val upstreamFactory = DefaultDataSourceFactory(context, dataSourceFactory)
-        val factory = buildCacheDataSourceFactory(upstreamFactory, downloadCache)
-        factory
-    }
-
-    private fun buildCacheDataSourceFactory(
-        upstreamFactory: DataSource.Factory,
-        cache: Cache
-    ): CacheDataSource.Factory {
-        return CacheDataSource.Factory()
-            .setCache(cache)
+    val cacheDataSourceFactory: CacheDataSource.Factory by lazy {
+        val upstreamFactory = DefaultDataSourceFactory(context, httpDataSourceFactory)
+        val factory = CacheDataSource.Factory()
+            .setCache(downloadCache)
             .setUpstreamDataSourceFactory(upstreamFactory)
-            .setCacheReadDataSourceFactory(getCacheReadDataSourceFactory(cache))
-            .setCacheWriteDataSinkFactory(getCacheWriteDataSinkFactory(cache))
+            .setCacheReadDataSourceFactory(getCacheReadDataSourceFactory())
+            .setCacheWriteDataSinkFactory(getCacheWriteDataSinkFactory(downloadCache))
             .setFlags(CacheDataSource.FLAG_IGNORE_CACHE_ON_ERROR)
+        factory
     }
 
     /**
      * 对 metadata缓存 解密
      */
-    private fun getCacheReadDataSourceFactory(cache: Cache): DataSource.Factory {
-        val m3u8Key = cache.keys.filter { it.endsWith(".m3u8") }
-        Log.d("===>","m3u8Key:$m3u8Key")
-        if(m3u8Key.isNotEmpty()){
-            val contentMetadata: ContentMetadata = cache.getContentMetadata(m3u8Key.first())
-            Log.d("===>","metadata:$contentMetadata")
-        }
-
+    private fun getCacheReadDataSourceFactory(): DataSource.Factory {
         return DataSource.Factory {
             AesCipherDataSource(
                 Util.getUtf8Bytes(SECRET_KEY),
