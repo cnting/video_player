@@ -13,15 +13,18 @@
  * See the License for the specific language governing permissions and
  * limitations under the License.
  */
-package io.flutter.plugins.videoplayer;
+package io.flutter.plugins.videoplayer.datasource;
+
 import static com.google.android.exoplayer2.upstream.HttpUtil.buildRangeRequestHeader;
 import static com.google.android.exoplayer2.util.Assertions.checkNotNull;
 import static com.google.android.exoplayer2.util.Util.castNonNull;
 import static java.lang.Math.min;
 
 import android.net.Uri;
+
 import androidx.annotation.Nullable;
 import androidx.annotation.VisibleForTesting;
+
 import com.google.android.exoplayer2.C;
 import com.google.android.exoplayer2.PlaybackException;
 import com.google.android.exoplayer2.upstream.BaseDataSource;
@@ -35,6 +38,7 @@ import com.google.android.exoplayer2.util.Log;
 import com.google.android.exoplayer2.util.Util;
 import com.google.common.base.Predicate;
 import com.google.common.net.HttpHeaders;
+
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InterruptedIOException;
@@ -45,6 +49,7 @@ import java.net.MalformedURLException;
 import java.net.NoRouteToHostException;
 import java.net.Proxy;
 import java.net.URL;
+import java.util.ArrayList;
 import java.util.Collections;
 import java.util.HashMap;
 import java.util.List;
@@ -64,27 +69,37 @@ import java.util.zip.GZIPInputStream;
  */
 public class NoProxyDefaultHttpDataSource extends BaseDataSource implements HttpDataSource {
 
-    /** {@link NoProxyDefaultHttpDataSource.Factory} for {@link NoProxyDefaultHttpDataSource} instances. */
+    /**
+     * {@link NoProxyDefaultHttpDataSource.Factory} for {@link NoProxyDefaultHttpDataSource} instances.
+     */
     public static final class Factory implements HttpDataSource.Factory {
 
         private final RequestProperties defaultRequestProperties;
 
-        @Nullable private TransferListener transferListener;
-        @Nullable private Predicate<String> contentTypePredicate;
-        @Nullable private String userAgent;
+        @Nullable
+        private TransferListener transferListener;
+        @Nullable
+        private Predicate<String> contentTypePredicate;
+        @Nullable
+        private String userAgent;
         private int connectTimeoutMs;
         private int readTimeoutMs;
         private boolean allowCrossProtocolRedirects;
         private boolean keepPostFor302Redirects;
+        private List<HttpResponseInterceptor> responseInterceptors = new ArrayList<>();
 
-        /** Creates an instance. */
+        /**
+         * Creates an instance.
+         */
         public Factory() {
             defaultRequestProperties = new RequestProperties();
             connectTimeoutMs = DEFAULT_CONNECT_TIMEOUT_MILLIS;
             readTimeoutMs = DEFAULT_READ_TIMEOUT_MILLIS;
         }
 
-        /** @deprecated Use {@link #setDefaultRequestProperties(Map)} instead. */
+        /**
+         * @deprecated Use {@link #setDefaultRequestProperties(Map)} instead.
+         */
         @Deprecated
         @Override
         public final RequestProperties getDefaultRequestProperties() {
@@ -104,7 +119,7 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
          * platform to be used.
          *
          * @param userAgent The user agent that will be used, or {@code null} to use the default user
-         *     agent of the underlying platform.
+         *                  agent of the underlying platform.
          * @return This factory.
          */
         public Factory setUserAgent(@Nullable String userAgent) {
@@ -114,7 +129,6 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
 
         /**
          * Sets the connect timeout, in milliseconds.
-         *
          *
          * @param connectTimeoutMs The connect timeout, in milliseconds, that will be used.
          * @return This factory.
@@ -126,7 +140,6 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
 
         /**
          * Sets the read timeout, in milliseconds.
-         *
          *
          * @param readTimeoutMs The connect timeout, in milliseconds, that will be used.
          * @return This factory.
@@ -157,7 +170,7 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
          * <p>The default is {@code null}.
          *
          * @param contentTypePredicate The content type {@link Predicate}, or {@code null} to clear a
-         *     predicate that was previously set.
+         *                             predicate that was previously set.
          * @return This factory.
          */
         public Factory setContentTypePredicate(@Nullable Predicate<String> contentTypePredicate) {
@@ -189,6 +202,11 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
             return this;
         }
 
+        public Factory addHttpResponseInterceptor(HttpResponseInterceptor interceptor) {
+            this.responseInterceptors.add(interceptor);
+            return this;
+        }
+
         @Override
         public NoProxyDefaultHttpDataSource createDataSource() {
             NoProxyDefaultHttpDataSource dataSource =
@@ -199,7 +217,8 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
                             allowCrossProtocolRedirects,
                             defaultRequestProperties,
                             contentTypePredicate,
-                            keepPostFor302Redirects);
+                            keepPostFor302Redirects
+                            , responseInterceptors);
             if (transferListener != null) {
                 dataSource.addTransferListener(transferListener);
             }
@@ -207,9 +226,13 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
         }
     }
 
-    /** The default connection timeout, in milliseconds. */
+    /**
+     * The default connection timeout, in milliseconds.
+     */
     public static final int DEFAULT_CONNECT_TIMEOUT_MILLIS = 8 * 1000;
-    /** The default read timeout, in milliseconds. */
+    /**
+     * The default read timeout, in milliseconds.
+     */
     public static final int DEFAULT_READ_TIMEOUT_MILLIS = 8 * 1000;
 
     private static final String TAG = "DefaultHttpDataSource";
@@ -221,64 +244,26 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
     private final boolean allowCrossProtocolRedirects;
     private final int connectTimeoutMillis;
     private final int readTimeoutMillis;
-    @Nullable private final String userAgent;
-    @Nullable private final RequestProperties defaultRequestProperties;
+    @Nullable
+    private final String userAgent;
+    @Nullable
+    private final RequestProperties defaultRequestProperties;
     private final RequestProperties requestProperties;
     private final boolean keepPostFor302Redirects;
 
-    @Nullable private Predicate<String> contentTypePredicate;
-    @Nullable private DataSpec dataSpec;
-    @Nullable private HttpURLConnection connection;
-    @Nullable private InputStream inputStream;
+    @Nullable
+    private Predicate<String> contentTypePredicate;
+    @Nullable
+    private DataSpec dataSpec;
+    @Nullable
+    private HttpURLConnection connection;
+    @Nullable
+    private InputStream inputStream;
     private boolean opened;
     private int responseCode;
     private long bytesToRead;
     private long bytesRead;
-
-    /** @deprecated Use {@link NoProxyDefaultHttpDataSource.Factory} instead. */
-    @SuppressWarnings("deprecation")
-    @Deprecated
-    public NoProxyDefaultHttpDataSource() {
-        this(/* userAgent= */ null, DEFAULT_CONNECT_TIMEOUT_MILLIS, DEFAULT_READ_TIMEOUT_MILLIS);
-    }
-
-    /** @deprecated Use {@link NoProxyDefaultHttpDataSource.Factory} instead. */
-    @SuppressWarnings("deprecation")
-    @Deprecated
-    public NoProxyDefaultHttpDataSource(@Nullable String userAgent) {
-        this(userAgent, DEFAULT_CONNECT_TIMEOUT_MILLIS, DEFAULT_READ_TIMEOUT_MILLIS);
-    }
-
-    /** @deprecated Use {@link NoProxyDefaultHttpDataSource.Factory} instead. */
-    @SuppressWarnings("deprecation")
-    @Deprecated
-    public NoProxyDefaultHttpDataSource(
-            @Nullable String userAgent, int connectTimeoutMillis, int readTimeoutMillis) {
-        this(
-                userAgent,
-                connectTimeoutMillis,
-                readTimeoutMillis,
-                /* allowCrossProtocolRedirects= */ false,
-                /* defaultRequestProperties= */ null);
-    }
-
-    /** @deprecated Use {@link NoProxyDefaultHttpDataSource.Factory} instead. */
-    @Deprecated
-    public NoProxyDefaultHttpDataSource(
-            @Nullable String userAgent,
-            int connectTimeoutMillis,
-            int readTimeoutMillis,
-            boolean allowCrossProtocolRedirects,
-            @Nullable RequestProperties defaultRequestProperties) {
-        this(
-                userAgent,
-                connectTimeoutMillis,
-                readTimeoutMillis,
-                allowCrossProtocolRedirects,
-                defaultRequestProperties,
-                /* contentTypePredicate= */ null,
-                /* keepPostFor302Redirects= */ false);
-    }
+    private List<HttpResponseInterceptor> responseInterceptors;
 
     private NoProxyDefaultHttpDataSource(
             @Nullable String userAgent,
@@ -287,7 +272,9 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
             boolean allowCrossProtocolRedirects,
             @Nullable RequestProperties defaultRequestProperties,
             @Nullable Predicate<String> contentTypePredicate,
-            boolean keepPostFor302Redirects) {
+            boolean keepPostFor302Redirects,
+            List<HttpResponseInterceptor> interceptors
+    ) {
         super(/* isNetwork= */ true);
         this.userAgent = userAgent;
         this.connectTimeoutMillis = connectTimeoutMillis;
@@ -297,11 +284,12 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
         this.contentTypePredicate = contentTypePredicate;
         this.requestProperties = new RequestProperties();
         this.keepPostFor302Redirects = keepPostFor302Redirects;
+        this.responseInterceptors = interceptors;
     }
 
     /**
      * @deprecated Use {@link NoProxyDefaultHttpDataSource.Factory#setContentTypePredicate(Predicate)}
-     *     instead.
+     * instead.
      */
     @Deprecated
     public void setContentTypePredicate(@Nullable Predicate<String> contentTypePredicate) {
@@ -342,7 +330,9 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
         requestProperties.clear();
     }
 
-    /** Opens the source to read the specified data. */
+    /**
+     * Opens the source to read the specified data.
+     */
     @Override
     public long open(DataSpec dataSpec) throws HttpDataSourceException {
         this.dataSpec = dataSpec;
@@ -440,6 +430,13 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
                     HttpDataSourceException.TYPE_OPEN);
         }
 
+        if (inputStream != null) {
+            //对请求结果进行拦截
+            for (HttpResponseInterceptor interceptor : responseInterceptors) {
+                inputStream = interceptor.intercept(dataSpec.uri.toString(), inputStream);
+            }
+        }
+
         opened = true;
         transferStarted(dataSpec);
 
@@ -499,7 +496,9 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
         }
     }
 
-    /** Establishes a connection, following redirects to do so where permitted. */
+    /**
+     * Establishes a connection, following redirects to do so where permitted.
+     */
     private HttpURLConnection makeConnection(DataSpec dataSpec) throws IOException {
         URL url = new URL(dataSpec.uri.toString());
         @HttpMethod int httpMethod = dataSpec.httpMethod;
@@ -577,13 +576,13 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
     /**
      * Configures a connection and opens it.
      *
-     * @param url The url to connect to.
-     * @param httpMethod The http method.
-     * @param httpBody The body data, or {@code null} if not required.
-     * @param position The byte offset of the requested data.
-     * @param length The length of the requested data, or {@link C#LENGTH_UNSET}.
-     * @param allowGzip Whether to allow the use of gzip.
-     * @param followRedirects Whether to follow redirects.
+     * @param url               The url to connect to.
+     * @param httpMethod        The http method.
+     * @param httpBody          The body data, or {@code null} if not required.
+     * @param position          The byte offset of the requested data.
+     * @param length            The length of the requested data, or {@link C#LENGTH_UNSET}.
+     * @param allowGzip         Whether to allow the use of gzip.
+     * @param followRedirects   Whether to follow redirects.
      * @param requestParameters parameters (HTTP headers) to include in request.
      */
     private HttpURLConnection makeConnection(
@@ -635,10 +634,11 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
         return connection;
     }
 
-    /** Creates an {@link HttpURLConnection} that is connected with the {@code url}. */
+    /**
+     * Creates an {@link HttpURLConnection} that is connected with the {@code url}.
+     */
     @VisibleForTesting
     /* package */ HttpURLConnection openConnection(URL url) throws IOException {
-        Log.d("===>","url:"+url);
         return (HttpURLConnection) url.openConnection(Proxy.NO_PROXY);
     }
 
@@ -646,8 +646,8 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
      * Handles a redirect.
      *
      * @param originalUrl The original URL.
-     * @param location The Location header in the response. May be {@code null}.
-     * @param dataSpec The {@link DataSpec}.
+     * @param location    The Location header in the response. May be {@code null}.
+     * @param dataSpec    The {@link DataSpec}.
      * @return The next URL.
      * @throws HttpDataSourceException If redirection isn't possible.
      */
@@ -699,9 +699,9 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
      * Attempts to skip the specified number of bytes in full.
      *
      * @param bytesToSkip The number of bytes to skip.
-     * @param dataSpec The {@link DataSpec}.
+     * @param dataSpec    The {@link DataSpec}.
      * @throws IOException If the thread is interrupted during the operation, or if the data ended
-     *     before skipping the specified number of bytes.
+     *                     before skipping the specified number of bytes.
      */
     private void skipFully(long bytesToSkip, DataSpec dataSpec) throws IOException {
         if (bytesToSkip == 0) {
@@ -736,11 +736,11 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
      * <p>This method blocks until at least one byte of data can be read, the end of the opened range
      * is detected, or an exception is thrown.
      *
-     * @param buffer The buffer into which the read data should be stored.
-     * @param offset The start offset into {@code buffer} at which data should be written.
+     * @param buffer     The buffer into which the read data should be stored.
+     * @param offset     The start offset into {@code buffer} at which data should be written.
      * @param readLength The maximum number of bytes to read.
      * @return The number of bytes read, or {@link C#RESULT_END_OF_INPUT} if the end of the opened
-     *     range is reached.
+     * range is reached.
      * @throws IOException If an error occurs reading from the source.
      */
     private int readInternal(byte[] buffer, int offset, int readLength) throws IOException {
@@ -772,9 +772,9 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
      * unexpected end of input, working around this issue. On other platform API levels, the method
      * does nothing.
      *
-     * @param connection The connection whose {@link InputStream} should be terminated.
+     * @param connection     The connection whose {@link InputStream} should be terminated.
      * @param bytesRemaining The number of bytes remaining to be read from the input stream if its
-     *     length is known. {@link C#LENGTH_UNSET} otherwise.
+     *                       length is known. {@link C#LENGTH_UNSET} otherwise.
      */
     private static void maybeTerminateInputStream(
             @Nullable HttpURLConnection connection, long bytesRemaining) {
@@ -811,7 +811,9 @@ public class NoProxyDefaultHttpDataSource extends BaseDataSource implements Http
         }
     }
 
-    /** Closes the current connection quietly, if there is one. */
+    /**
+     * Closes the current connection quietly, if there is one.
+     */
     private void closeConnectionQuietly() {
         if (connection != null) {
             try {

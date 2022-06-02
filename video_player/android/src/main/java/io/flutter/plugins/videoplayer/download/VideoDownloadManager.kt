@@ -13,6 +13,8 @@ import com.google.android.exoplayer2.upstream.cache.*
 import com.google.android.exoplayer2.upstream.crypto.AesCipherDataSink
 import com.google.android.exoplayer2.upstream.crypto.AesCipherDataSource
 import com.google.android.exoplayer2.util.Util
+import io.flutter.plugins.videoplayer.datasource.DefaultHttpResponseDecryptInterceptor
+import io.flutter.plugins.videoplayer.datasource.NoProxyDefaultHttpDataSource
 import java.io.File
 import java.util.concurrent.Executors
 
@@ -77,19 +79,19 @@ class VideoDownloadManager private constructor(private val context: Context) {
                 downloadContentDirectory,
                 NoOpCacheEvictor(),
                 databaseProvider,
-                Util.getUtf8Bytes(SECRET_KEY),  //对cacheIndex进行加密
-                true,
-                false
+//                Util.getUtf8Bytes(SECRET_KEY),  //对cacheIndex进行加密
+//                true,
+//                false
             )
         downloadCache
     }
 
     val httpDataSourceFactory: HttpDataSource.Factory by lazy {
         //禁止抓包
-        val factory = NoProxyDefaultHttpDataSource.Factory()  // TODO: 改回来
-//        val factory = DefaultHttpDataSource.Factory()
+        val factory = NoProxyDefaultHttpDataSource.Factory()
             .setUserAgent("ExoPlayer")
             .setAllowCrossProtocolRedirects(true)
+            .addHttpResponseInterceptor(DefaultHttpResponseDecryptInterceptor())
         factory
     }
 

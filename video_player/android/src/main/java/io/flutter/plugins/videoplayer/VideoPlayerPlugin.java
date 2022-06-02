@@ -222,14 +222,12 @@ public class VideoPlayerPlugin implements FlutterPlugin, VideoPlayerApi {
 
     @Override
     public void download(Messages.DownloadMessage arg) {
-        Log.d("===>", "android download");
         VideoPlayer player = videoPlayers.get(arg.getTextureId());
         player.download(arg.getName());
     }
 
     @Override
     public void removeDownload(TextureMessage arg) {
-        Log.d("===>", "android removeDownload");
         VideoPlayer player = videoPlayers.get(arg.getTextureId());
         player.removeDownload();
     }
